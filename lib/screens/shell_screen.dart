@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'home/home_screen.dart';
+import 'profile/profile_screen.dart';
 
 /// Root scaffold that owns the bottom navigation bar.
-/// Screens other than Home are stubs for now.
+/// Screens other than Home and Profile are stubs for now.
 class ShellScreen extends StatefulWidget {
   const ShellScreen({super.key});
 
@@ -17,7 +18,7 @@ class _ShellScreenState extends State<ShellScreen> {
     HomeScreen(),
     _StubScreen(label: 'Friends',  icon: Icons.people_outline),
     _StubScreen(label: 'Groups',   icon: Icons.group_work_outlined),
-    _StubScreen(label: 'Profile',  icon: Icons.person_outline),
+    ProfileScreen(),
   ];
 
   @override
