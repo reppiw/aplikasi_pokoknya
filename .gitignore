@@ -18,15 +18,14 @@ migrate_working_dir/
 *.iws
 .idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+# VS Code / Kiro — machine-specific launch configs and workspace settings
+.vscode/
 
 # Flutter/Dart/Pub related
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
+.flutter-plugins
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
@@ -46,3 +45,33 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# ── Firebase ─────────────────────────────────────────────────────────────────
+# These files contain API keys — add them manually on each machine after setup.
+# See: https://firebase.google.com/docs/flutter/setup
+google-services.json
+GoogleService-Info.plist
+
+# ── Secrets / environment files ───────────────────────────────────────────────
+*.env
+*.env.*
+!*.env.example
+
+# ── Unity project (lives in /unity/) ─────────────────────────────────────────
+/unity/[Ll]ibrary/
+/unity/[Tt]emp/
+/unity/[Oo]bj/
+/unity/[Bb]uild/
+/unity/[Bb]uilds/
+/unity/[Ll]ogs/
+/unity/[Uu]ser[Ss]ettings/
+/unity/[Mm]emoryCaptures/
+/unity/[Aa]ssets/AssetStoreTools*
+/unity/*.apk
+/unity/*.aab
+/unity/*.unitypackage
+/unity/*.app
+/unity/ExportedObj/
+/unity/csc.rsp
+/unity/.vs/
+/unity/Assembly-CSharp*
