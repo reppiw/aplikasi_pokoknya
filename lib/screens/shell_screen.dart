@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'group/group_list_screen.dart';
 import 'home/home_screen.dart';
 import 'profile/profile_screen.dart';
 
@@ -17,7 +18,7 @@ class _ShellScreenState extends State<ShellScreen> {
   static const _screens = <Widget>[
     HomeScreen(),
     _StubScreen(label: 'Friends',  icon: Icons.people_outline),
-    _StubScreen(label: 'Groups',   icon: Icons.group_work_outlined),
+    GroupListScreen(),
     ProfileScreen(),
   ];
 
