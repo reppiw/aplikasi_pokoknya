@@ -14,10 +14,10 @@ class App extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title:             'Koboted',
+      title:                     'Koboted',
       debugShowCheckedModeBanner: false,
-      theme:             AppTheme.light,
-      home:              const ShellScreen(),
+      theme:                     AppTheme.light,
+      home:                      const ShellScreen(),
     );
   }
 }

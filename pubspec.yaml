@@ -41,3 +41,19 @@ flutter:
 
   shaders:
     - shaders/gradient_waves.frag
+
+  fonts:
+    - family: SpaceGrotesk
+      fonts:
+        - asset: assets/fonts/SpaceGrotesk-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/SpaceGrotesk-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/SpaceGrotesk-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/SpaceGrotesk-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/SpaceGrotesk-Bold.ttf
+          weight: 800
+        - asset: assets/fonts/SpaceGrotesk-Bold.ttf
+          weight: 900
