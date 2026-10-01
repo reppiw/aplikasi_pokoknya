@@ -6,6 +6,7 @@ import 'screens/auth/login_screen.dart';
 import 'screens/shell_screen.dart';
 import 'services/auth_service.dart';
 import 'screens/opening_screen.dart';
+import 'screens/friends/friends_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'group/group_list_screen.dart';
 import 'home/home_screen.dart';
 import 'profile/profile_screen.dart';
+import 'friends/friends_screen.dart';
 import '../core/theme/app_theme.dart';
 
 /// Root scaffold with Neo-Brutalist bottom navigation bar.
@@ -22,7 +23,7 @@ class _ShellScreenState extends State<ShellScreen> {
   Widget build(BuildContext context) {
     final screens = <Widget>[
       const HomeScreen(),
-      const _StubScreen(label: 'FRIENDS', icon: Icons.people_outline),
+      const FriendsScreen(),
       const GroupListScreen(),
       ProfileScreen(onSignOut: widget.onSignOut),
     ];
