@@ -7,6 +7,10 @@ class AuthService {
 
   bool get isSignedIn => _currentAccount != null;
 
+  void signOut() {
+    _currentAccount = null;
+  }
+
   void register({
     required String name,
     required String username,

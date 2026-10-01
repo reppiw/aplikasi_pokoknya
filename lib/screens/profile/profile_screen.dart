@@ -1,24 +1,25 @@
 import 'package:flutter/material.dart';
+
 import '../../models/user.dart';
 import '../../core/theme/app_theme.dart';
 import 'edit_profile_screen.dart';
 
 const _kCurrentUser = AppUser(
-  id:          'demo-user-1',
+  id: 'demo-user-1',
   displayName: 'aku nak makan',
-  avatarUrl:   '',
+  avatarUrl: '',
 );
 
 class _ProfileStat {
   const _ProfileStat(this.label, this.value, this.accentColor);
   final String label, value;
-  final Color  accentColor;
+  final Color accentColor;
 }
 
 const _kStats = [
-  _ProfileStat('GROUPS',  '4',  NeoColors.accent),
+  _ProfileStat('GROUPS', '4', NeoColors.accent),
   _ProfileStat('FRIENDS', '23', NeoColors.secondary),
-  _ProfileStat('STATUS',  'ON', NeoColors.muted),
+  _ProfileStat('STATUS', 'ON', NeoColors.muted),
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -26,8 +27,36 @@ const _kStats = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key, this.user = _kCurrentUser});
+  const ProfileScreen({
+    super.key,
+    this.user = _kCurrentUser,
+    required this.onSignOut,
+  });
+
   final AppUser user;
+  final VoidCallback onSignOut;
+
+  Future<void> _confirmSignOut(BuildContext context) async {
+    final shouldSignOut = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Keluar dari akun?'),
+        content: const Text('Kamu akan kembali ke halaman login.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('BATAL'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('YA, KELUAR'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldSignOut == true) onSignOut();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +64,10 @@ class ProfileScreen extends StatelessWidget {
       children: [
         // Background image
         Positioned.fill(
-          child: Image.asset('assets/Homepage_Background.jpg', fit: BoxFit.cover),
+          child: Image.asset(
+            'assets/Homepage_Background.jpg',
+            fit: BoxFit.cover,
+          ),
         ),
         // Cream overlay
         Positioned.fill(
@@ -48,16 +80,12 @@ class ProfileScreen extends StatelessWidget {
           child: CustomScrollView(
             slivers: [
               // ── Page heading ──────────────────────────────────────────
-              SliverToBoxAdapter(
-                child: _PageHeading(),
-              ),
+              SliverToBoxAdapter(child: _PageHeading()),
 
               // ── Profile card ──────────────────────────────────────────
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                sliver: SliverToBoxAdapter(
-                  child: _ProfileCard(user: user),
-                ),
+                sliver: SliverToBoxAdapter(child: _ProfileCard(user: user)),
               ),
 
               // ── Menu: Account ─────────────────────────────────────────
@@ -72,17 +100,28 @@ class ProfileScreen extends StatelessWidget {
                         Icons.edit_outlined,
                         'Edit Profile',
                         NeoColors.secondary,
-                            () {
+                        () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => EditProfileScreen(user: user),
+                              builder: (context) =>
+                                  EditProfileScreen(user: user),
                             ),
                           );
                         },
                       ),
-                      _MenuItem(Icons.notifications_outlined, 'Notifications',     NeoColors.muted,     () {}),
-                      _MenuItem(Icons.lock_outline,           'Privacy & Safety',  NeoColors.accent,    () {}),
+                      _MenuItem(
+                        Icons.notifications_outlined,
+                        'Notifications',
+                        NeoColors.muted,
+                        () {},
+                      ),
+                      _MenuItem(
+                        Icons.lock_outline,
+                        'Privacy & Safety',
+                        NeoColors.accent,
+                        () {},
+                      ),
                     ],
                   ),
                 ),
@@ -95,7 +134,12 @@ class ProfileScreen extends StatelessWidget {
                   child: _MenuSection(
                     title: 'SUPPORT',
                     items: [
-                      _MenuItem(Icons.help_outline, 'Help & Support', NeoColors.muted, () {}),
+                      _MenuItem(
+                        Icons.help_outline,
+                        'Help & Support',
+                        NeoColors.muted,
+                        () {},
+                      ),
                     ],
                   ),
                 ),
@@ -105,7 +149,7 @@ class ProfileScreen extends StatelessWidget {
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                 sliver: SliverToBoxAdapter(
-                  child: _SignOutButton(onTap: () {}),
+                  child: _SignOutButton(onTap: () => _confirmSignOut(context)),
                 ),
               ),
 
@@ -128,7 +172,7 @@ class _PageHeading extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
       decoration: const BoxDecoration(
-        color:  NeoColors.cream,
+        color: NeoColors.cream,
         border: Border(bottom: BorderSide(color: NeoColors.ink, width: 4)),
         boxShadow: [BoxShadow(color: NeoColors.ink, offset: Offset(0, 4))],
       ),
@@ -139,10 +183,13 @@ class _PageHeading extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color:  NeoColors.muted,
+                color: NeoColors.muted,
                 border: NeoBorder.thin,
               ),
-              child: Text('YOU', style: NeoTextStyles.label.copyWith(fontSize: 9)),
+              child: Text(
+                'YOU',
+                style: NeoTextStyles.label.copyWith(fontSize: 9),
+              ),
             ),
           ),
           const SizedBox(width: 10),
@@ -167,14 +214,14 @@ class _ProfileCard extends StatelessWidget {
         ? '?'
         : user.displayName.trim()[0].toUpperCase();
 
-    const double avatarSize    = 72.0;
-    const double bandHeight    = 80.0;
+    const double avatarSize = 72.0;
+    const double bandHeight = 80.0;
     const double avatarOverlap = avatarSize / 2;
 
     return Container(
       decoration: BoxDecoration(
-        color:     NeoColors.cream,
-        border:    NeoBorder.thick,
+        color: NeoColors.cream,
+        border: NeoBorder.thick,
         boxShadow: NeoShadows.l,
       ),
       child: Column(
@@ -184,7 +231,9 @@ class _ProfileCard extends StatelessWidget {
             child: Stack(
               children: [
                 Positioned(
-                  top: 0, left: 0, right: 0,
+                  top: 0,
+                  left: 0,
+                  right: 0,
                   height: bandHeight,
                   child: Container(
                     decoration: const BoxDecoration(
@@ -196,35 +245,35 @@ class _ProfileCard extends StatelessWidget {
                   ),
                 ),
                 Positioned(
-                  top:   bandHeight - avatarOverlap,
-                  left:  0,
+                  top: bandHeight - avatarOverlap,
+                  left: 0,
                   right: 0,
                   child: Center(
                     child: Container(
-                      width:  avatarSize,
+                      width: avatarSize,
                       height: avatarSize,
                       decoration: BoxDecoration(
-                        color:     NeoColors.accent,
-                        border:    NeoBorder.thick,
+                        color: NeoColors.accent,
+                        border: NeoBorder.thick,
                         boxShadow: NeoShadows.s,
                       ),
                       alignment: Alignment.center,
                       child: user.avatarUrl.isNotEmpty
                           ? ClipRect(
-                        child: Image.network(
-                          user.avatarUrl,
-                          fit:    BoxFit.cover,
-                          width:  avatarSize,
-                          height: avatarSize,
-                        ),
-                      )
+                              child: Image.network(
+                                user.avatarUrl,
+                                fit: BoxFit.cover,
+                                width: avatarSize,
+                                height: avatarSize,
+                              ),
+                            )
                           : Text(
-                        initials,
-                        style: NeoTextStyles.h2.copyWith(
-                          fontSize: 32,
-                          color:    NeoColors.white,
-                        ),
-                      ),
+                              initials,
+                              style: NeoTextStyles.h2.copyWith(
+                                fontSize: 32,
+                                color: NeoColors.white,
+                              ),
+                            ),
                     ),
                   ),
                 ),
@@ -239,15 +288,18 @@ class _ProfileCard extends StatelessWidget {
                 Text(
                   user.displayName.toUpperCase(),
                   textAlign: TextAlign.center,
-                  style:     NeoTextStyles.h3,
-                  maxLines:  2,
-                  overflow:  TextOverflow.ellipsis,
+                  style: NeoTextStyles.h3,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
-                    color:  NeoColors.muted,
+                    color: NeoColors.muted,
                     border: NeoBorder.thin,
                   ),
                   child: Text(
@@ -307,15 +359,15 @@ class _ProfileCard extends StatelessWidget {
 
 class _MenuItem {
   _MenuItem(this.icon, this.label, this.accentColor, this.onTap);
-  final IconData     icon;
-  final String       label;
-  final Color        accentColor;
+  final IconData icon;
+  final String label;
+  final Color accentColor;
   final VoidCallback onTap;
 }
 
 class _MenuSection extends StatelessWidget {
   const _MenuSection({required this.title, required this.items});
-  final String        title;
+  final String title;
   final List<_MenuItem> items;
 
   @override
@@ -328,7 +380,7 @@ class _MenuSection extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color:  NeoColors.ink,
+              color: NeoColors.ink,
               border: NeoBorder.thin,
             ),
             child: Text(
@@ -342,7 +394,7 @@ class _MenuSection extends StatelessWidget {
         ),
         Container(
           decoration: BoxDecoration(
-            border:    NeoBorder.thick,
+            border: NeoBorder.thick,
             boxShadow: NeoShadows.m,
           ),
           child: Column(
@@ -374,21 +426,21 @@ class _MenuRowState extends State<_MenuRow> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTapDown:   (_) => setState(() => _pressed = true),
-      onTapUp:     (_) => setState(() => _pressed = false),
-      onTapCancel: ()  => setState(() => _pressed = false),
-      onTap:       widget.item.onTap,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: widget.item.onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 100),
-        color:    _pressed ? NeoColors.secondary : NeoColors.cream,
-        padding:  const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        color: _pressed ? NeoColors.secondary : NeoColors.cream,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: Row(
           children: [
             Container(
-              width:  38,
+              width: 38,
               height: 38,
               decoration: BoxDecoration(
-                color:  widget.item.accentColor,
+                color: widget.item.accentColor,
                 border: NeoBorder.thin,
               ),
               child: Icon(widget.item.icon, size: 18, color: NeoColors.ink),
@@ -401,12 +453,14 @@ class _MenuRowState extends State<_MenuRow> {
               ),
             ),
             Container(
-              width:  28,
+              width: 28,
               height: 28,
-              decoration: const BoxDecoration(
-                color:  NeoColors.ink,
+              decoration: const BoxDecoration(color: NeoColors.ink),
+              child: const Icon(
+                Icons.arrow_forward_rounded,
+                color: NeoColors.white,
+                size: 14,
               ),
-              child: const Icon(Icons.arrow_forward_rounded, color: NeoColors.white, size: 14),
             ),
           ],
         ),
@@ -433,10 +487,10 @@ class _SignOutButtonState extends State<_SignOutButton> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTapDown:   (_) => setState(() => _pressed = true),
-      onTapUp:     (_) => setState(() => _pressed = false),
-      onTapCancel: ()  => setState(() => _pressed = false),
-      onTap:       widget.onTap,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: widget.onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 100),
         transform: _pressed
@@ -444,8 +498,8 @@ class _SignOutButtonState extends State<_SignOutButton> {
             : Matrix4.identity(),
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color:     NeoColors.accent,
-          border:    NeoBorder.thick,
+          color: NeoColors.accent,
+          border: NeoBorder.thick,
           boxShadow: _pressed ? [] : NeoShadows.m,
         ),
         child: Row(

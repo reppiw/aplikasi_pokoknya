@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
+import '../../widgets/active_room_banner.dart';
+import '../../screens/room_editor/room_detail_screen.dart';
+import '../../screens/room_editor/room_history_screen.dart';
+import '../../models/group.dart';
+import '../../models/room.dart';
 
 class _GroupItem {
   const _GroupItem({
@@ -118,42 +123,73 @@ class _GroupListScreenState extends State<GroupListScreen> {
   Future<void> _joinGroup() async {
     final controller = TextEditingController();
     final result = await _showNeoDialog(
-      context:   context,
-      title:     'JOIN GROUP',
-      hint:      'Enter group code…',
-      action:    'JOIN',
+      context: context,
+      title: 'JOIN GROUP',
+      hint: 'Enter group name or code…',
+      action: 'JOIN',
       controller: controller,
     );
 
     if (result != null && result.isNotEmpty) {
+      final query = result.trim().toLowerCase();
+
+      // Cari apakah grup dengan nama tersebut sudah ada di daftar
+      final idx = _allGroups.indexWhere(
+            (g) => g.name.toLowerCase() == query,
+      );
+
       setState(() {
-        final idx = _allGroups.indexWhere(
-          (g) => g.name.toLowerCase() == result.toLowerCase(),
-        );
         if (idx >= 0) {
           final g = _allGroups[idx];
+          if (g.isJoined) {
+            // Jika user ternyata sudah bergabung di grup tersebut
+            _showSnackBar('KAMU SUDAH BERGABUNG DI GRUP INI!', isError: true);
+            return;
+          }
+
+          // Perbarui status grup yang ada menjadi isJoined: true
           _allGroups[idx] = _GroupItem(
-            name:        g.name,
-            status:      g.status,
+            name: g.name,
+            status: g.status,
             memberCount: g.memberCount + 1,
-            isJoined:    true,
+            isJoined: true,
             accentColor: g.accentColor,
           );
+          _showSnackBar('BERHASIL BERGABUNG KE ${g.name.toUpperCase()}!');
         } else {
+          // Jika grup tidak ditemukan di list lokal, masukkan sebagai grup baru yang di-join
           _allGroups.insert(
             0,
             _GroupItem(
-              name:        'Joined via $result',
-              status:      '1 online',
+              name: result.toUpperCase(),
+              status: '1 online',
               memberCount: 2,
-              isJoined:    true,
+              isJoined: true,
               accentColor: _colorFor(result),
             ),
           );
+          _showSnackBar('BERHASIL BERGABUNG VIA KODE: $result!');
         }
         _onSearchChanged();
       });
     }
+  }
+
+  // Helper untuk menampilkan SnackBar Neobrutalism
+  void _showSnackBar(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: NeoTextStyles.label.copyWith(color: NeoColors.white),
+        ),
+        backgroundColor: isError ? NeoColors.accent : NeoColors.ink,
+        behavior: SnackBarBehavior.floating,
+        shape: const RoundedRectangleBorder(
+          side: BorderSide(color: NeoColors.ink, width: 3),
+        ),
+      ),
+    );
   }
 
   @override
@@ -177,6 +213,9 @@ class _GroupListScreenState extends State<GroupListScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+
+              const ActiveRoomBanner(),
+
               // ── Header ───────────────────────────────────────────────────
               _GroupsHeader(
                 searchController: _searchController,
@@ -277,6 +316,20 @@ class _GroupsHeaderState extends State<_GroupsHeader> {
               ),
               const SizedBox(width: 10),
               Text('Groups', style: NeoTextStyles.h2),
+
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.history_rounded, color: NeoColors.ink, size: 26),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const RoomHistoryScreen(),
+                    ),
+                  );
+                },
+              ),
+
             ],
           ),
           const SizedBox(height: 16),
@@ -369,7 +422,21 @@ class _GroupListTileState extends State<_GroupListTile> {
       onTapDown:   (_) => setState(() => _pressed = true),
       onTapUp:     (_) => setState(() => _pressed = false),
       onTapCancel: ()  => setState(() => _pressed = false),
-      onTap:       () {},
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RoomDetailScreen(
+              room: Room(
+                id: widget.group.name.toLowerCase().replaceAll(' ', '_'),
+                name: '${widget.group.name} Main Room',
+                statusTag: RoomStatusTag.free,
+              ),
+              groupName: widget.group.name,
+            ),
+          ),
+        );
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
         transform: _pressed

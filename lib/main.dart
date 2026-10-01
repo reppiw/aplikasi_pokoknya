@@ -28,7 +28,12 @@ class _AppState extends State<App> {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       home: _isAuthenticated
-          ? const ShellScreen()
+          ? ShellScreen(
+              onSignOut: () {
+                AuthService.instance.signOut();
+                setState(() => _isAuthenticated = false);
+              },
+            )
           : LoginScreen(
               onAuthenticated: () => setState(() => _isAuthenticated = true),
             ),
