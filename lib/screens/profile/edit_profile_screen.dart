@@ -16,19 +16,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _nameController;
   late TextEditingController _bioController;
   late TextEditingController _emailController;
-  String _selectedRole = 'STUDENT';
   bool _notificationsEnabled = true;
 
   bool _isLoading = false;
-
-  final List<String> _roleOptions = ['STUDENT', 'LECTURER', 'STAFF', 'GUEST'];
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.user.displayName);
-    _emailController = TextEditingController(text: '${widget.user.id}@kampus.ac.id');
-    _bioController = TextEditingController(text: 'Suka ngoding frontend Flutter.');
+    _emailController =
+        TextEditingController(text: '${widget.user.id}@app.com');
+    _bioController =
+        TextEditingController(text: 'Enthusiastic Flutter developer.');
   }
 
   @override
@@ -39,19 +38,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
+  // Fungsi simpan profil
   Future<void> _handleSave() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
 
+      // Simulasi delay proses simpan data (async)
       await Future.delayed(const Duration(milliseconds: 800));
 
       if (!mounted) return;
       setState(() => _isLoading = false);
 
+      // Notifikasi sukses
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'PROFIL BERHASIL DIPERBARUI!',
+            'PROFILE UPDATED SUCCESSFULLY!',
             style: NeoTextStyles.label.copyWith(color: NeoColors.white),
           ),
           backgroundColor: NeoColors.ink,
@@ -62,6 +64,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
+  // Dialog konfirmasi batal edit
   void _confirmCancel() {
     showDialog(
       context: context,
@@ -71,15 +74,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           side: BorderSide(color: NeoColors.ink, width: 4),
           borderRadius: BorderRadius.zero,
         ),
-        title: Text('BATALKAN EDIT?', style: NeoTextStyles.h3),
+        title: Text('DISCARD CHANGES?', style: NeoTextStyles.h3),
         content: Text(
-          'Semua perubahan yang belum disimpan akan hilang.',
+          'All unsaved changes will be lost.',
           style: NeoTextStyles.body,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('TIDAK', style: NeoTextStyles.button),
+            child: Text('NO', style: NeoTextStyles.button),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -90,7 +93,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               Navigator.pop(ctx);
               Navigator.pop(context);
             },
-            child: const Text('YA, BATALKAN'),
+            child: const Text('YES, DISCARD'),
           ),
         ],
       ),
@@ -121,76 +124,54 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Field Display Name
               _buildLabel('DISPLAY NAME'),
               TextFormField(
                 controller: _nameController,
                 style: NeoTextStyles.body,
-                decoration: _neoInputDecoration('Masukkan nama lengkap'),
+                decoration: _neoInputDecoration('Enter full name'),
                 validator: (val) {
                   if (val == null || val.trim().isEmpty) {
-                    return 'Nama tidak boleh kosong!';
+                    return 'Name cannot be empty!';
                   }
                   return null;
                 },
               ),
               const SizedBox(height: 16),
 
+              // Field Email Address
               _buildLabel('EMAIL ADDRESS'),
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 style: NeoTextStyles.body,
-                decoration: _neoInputDecoration('Masukkan email'),
+                decoration: _neoInputDecoration('Enter email address'),
                 validator: (val) {
                   if (val == null || !val.contains('@')) {
-                    return 'Format email tidak valid!';
+                    return 'Invalid email format!';
                   }
                   return null;
                 },
               ),
               const SizedBox(height: 16),
 
-              _buildLabel('USER ROLE'),
-              Container(
-                decoration: BoxDecoration(
-                  color: NeoColors.white,
-                  border: NeoBorder.thick,
-                  boxShadow: NeoShadows.s,
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _selectedRole,
-                    isExpanded: true,
-                    items: _roleOptions
-                        .map((r) => DropdownMenuItem(
-                      value: r,
-                      child: Text(r, style: NeoTextStyles.body),
-                    ))
-                        .toList(),
-                    onChanged: (val) {
-                      if (val != null) setState(() => _selectedRole = val);
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              _buildLabel('BIO / DESKRIPSI'),
+              // Field Bio / Description
+              _buildLabel('BIO / DESCRIPTION'),
               TextFormField(
                 controller: _bioController,
                 maxLines: 3,
                 style: NeoTextStyles.body,
-                decoration: _neoInputDecoration('Tulis bio singkat...'),
+                decoration: _neoInputDecoration('Write a short bio...'),
                 validator: (val) {
                   if (val == null || val.trim().length < 5) {
-                    return 'Bio minimal 5 karakter!';
+                    return 'Bio must be at least 5 characters long!';
                   }
                   return null;
                 },
               ),
               const SizedBox(height: 16),
 
+              // Switch Notification Toggle
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -201,7 +182,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('NOTIFIKASI AKTIF', style: NeoTextStyles.body),
+                    Text('ENABLE NOTIFICATIONS', style: NeoTextStyles.body),
                     Switch(
                       value: _notificationsEnabled,
                       activeColor: NeoColors.secondary,
@@ -213,7 +194,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
               const SizedBox(height: 30),
 
-              // ── Action Buttons ──────────────────────────────────────────
+              // Tombol Action (Cancel & Save)
               Row(
                 children: [
                   Expanded(
@@ -225,7 +206,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         foregroundColor: NeoColors.ink,
                       ),
                       onPressed: _isLoading ? null : _confirmCancel,
-                      child: Text('BATAL', style: NeoTextStyles.button),
+                      child: Text('CANCEL', style: NeoTextStyles.button),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -248,7 +229,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           color: NeoColors.ink,
                         ),
                       )
-                          : Text('SIMPAN', style: NeoTextStyles.button),
+                          : Text('SAVE', style: NeoTextStyles.button),
                     ),
                   ),
                 ],
@@ -260,6 +241,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
+  // Helper Widget untuk Label Form
   Widget _buildLabel(String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -270,6 +252,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
+  // Helper Decoration gaya Neo-Brutalism
   InputDecoration _neoInputDecoration(String hint) {
     return InputDecoration(
       hintText: hint,

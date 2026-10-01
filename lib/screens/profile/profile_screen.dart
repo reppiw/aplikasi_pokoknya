@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../models/user.dart';
 import '../../core/theme/app_theme.dart';
+import '../../models/user.dart';
 import 'edit_profile_screen.dart';
 
 const _kCurrentUser = AppUser(
@@ -22,11 +22,7 @@ const _kStats = [
   _ProfileStat('STATUS', 'ON', NeoColors.muted),
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Screen
-// ─────────────────────────────────────────────────────────────────────────────
-
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
     super.key,
     this.user = _kCurrentUser,
@@ -36,56 +32,232 @@ class ProfileScreen extends StatelessWidget {
   final AppUser user;
   final VoidCallback onSignOut;
 
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  // State Pengaturan Profil
+  bool _pushNotifications = true;
+  bool _emailNotifications = false;
+  bool _privateAccount = false;
+  bool _allowDirectMessages = true;
+
+  // Dialog Konfirmasi Sign Out
   Future<void> _confirmSignOut(BuildContext context) async {
     final shouldSignOut = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Keluar dari akun?'),
-        content: const Text('Kamu akan kembali ke halaman login.'),
+        backgroundColor: NeoColors.cream,
+        shape: const RoundedRectangleBorder(
+          side: BorderSide(color: NeoColors.ink, width: 4),
+          borderRadius: BorderRadius.zero,
+        ),
+        title: Text('SIGN OUT?', style: NeoTextStyles.h3),
+        content: Text(
+          'You will be redirected to the login screen.',
+          style: NeoTextStyles.body,
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('BATAL'),
+            child: Text('CANCEL', style: NeoTextStyles.button),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: NeoColors.accent,
+              foregroundColor: NeoColors.white,
+              side: const BorderSide(color: NeoColors.ink, width: 3),
+            ),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('YA, KELUAR'),
+            child: const Text('YES, SIGN OUT'),
           ),
         ],
       ),
     );
 
-    if (shouldSignOut == true) onSignOut();
+    if (shouldSignOut == true) widget.onSignOut();
+  }
+
+  // ── Dialog Notifications ──────────────────────────────────────────────────
+  void _showNotificationsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: NeoColors.cream,
+          shape: const RoundedRectangleBorder(
+            side: BorderSide(color: NeoColors.ink, width: 4),
+            borderRadius: BorderRadius.zero,
+          ),
+          title: Text('NOTIFICATIONS', style: NeoTextStyles.h3),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SwitchListTile(
+                title: Text('Push Notifications', style: NeoTextStyles.body),
+                value: _pushNotifications,
+                activeColor: NeoColors.secondary,
+                onChanged: (val) {
+                  setDialogState(() => _pushNotifications = val);
+                  setState(() {});
+                },
+              ),
+              const Divider(color: NeoColors.ink, thickness: 2),
+              SwitchListTile(
+                title: Text('Email Notifications', style: NeoTextStyles.body),
+                value: _emailNotifications,
+                activeColor: NeoColors.secondary,
+                onChanged: (val) {
+                  setDialogState(() => _emailNotifications = val);
+                  setState(() {});
+                },
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: NeoColors.secondary,
+                foregroundColor: NeoColors.ink,
+                side: const BorderSide(color: NeoColors.ink, width: 3),
+              ),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('SAVE'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Dialog Privacy & Safety ───────────────────────────────────────────────
+  void _showPrivacyDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: NeoColors.cream,
+          shape: const RoundedRectangleBorder(
+            side: BorderSide(color: NeoColors.ink, width: 4),
+            borderRadius: BorderRadius.zero,
+          ),
+          title: Text('PRIVACY & SAFETY', style: NeoTextStyles.h3),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SwitchListTile(
+                title: Text('Private Account', style: NeoTextStyles.body),
+                subtitle: const Text('Only friends can view your activity'),
+                value: _privateAccount,
+                activeColor: NeoColors.secondary,
+                onChanged: (val) {
+                  setDialogState(() => _privateAccount = val);
+                  setState(() {});
+                },
+              ),
+              const Divider(color: NeoColors.ink, thickness: 2),
+              SwitchListTile(
+                title: Text('Allow Direct Messages', style: NeoTextStyles.body),
+                subtitle: const Text('Receive messages from group members'),
+                value: _allowDirectMessages,
+                activeColor: NeoColors.secondary,
+                onChanged: (val) {
+                  setDialogState(() => _allowDirectMessages = val);
+                  setState(() {});
+                },
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: NeoColors.secondary,
+                foregroundColor: NeoColors.ink,
+                side: const BorderSide(color: NeoColors.ink, width: 3),
+              ),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('SAVE'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Dialog Help & Support ────────────────────────────────────────────────
+  void _showHelpDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: NeoColors.cream,
+        shape: const RoundedRectangleBorder(
+          side: BorderSide(color: NeoColors.ink, width: 4),
+          borderRadius: BorderRadius.zero,
+        ),
+        title: Text('HELP & SUPPORT', style: NeoTextStyles.h3),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Need assistance or facing issues?', style: NeoTextStyles.body),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: NeoColors.white,
+                border: NeoBorder.thin,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Email: support@campus.ac.id',
+                      style: NeoTextStyles.label.copyWith(fontSize: 10)),
+                  const SizedBox(height: 4),
+                  Text('App Version: v1.0.0',
+                      style: NeoTextStyles.label.copyWith(fontSize: 10)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: NeoColors.secondary,
+              foregroundColor: NeoColors.ink,
+              side: const BorderSide(color: NeoColors.ink, width: 3),
+            ),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('CLOSE'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // Background image
         Positioned.fill(
           child: Image.asset(
             'assets/Homepage_Background.jpg',
             fit: BoxFit.cover,
           ),
         ),
-        // Cream overlay
         Positioned.fill(
           child: ColoredBox(color: NeoColors.cream.withValues(alpha: 0.88)),
         ),
-        // Grid texture
         Positioned.fill(child: CustomPaint(painter: _GridPainter())),
-
         SafeArea(
           child: CustomScrollView(
             slivers: [
-              // ── Page heading ──────────────────────────────────────────
               SliverToBoxAdapter(child: _PageHeading()),
-
-              // ── Profile card ──────────────────────────────────────────
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                sliver: SliverToBoxAdapter(child: _ProfileCard(user: user)),
+                sliver:
+                SliverToBoxAdapter(child: _ProfileCard(user: widget.user)),
               ),
 
               // ── Menu: Account ─────────────────────────────────────────
@@ -95,17 +267,16 @@ class ProfileScreen extends StatelessWidget {
                   child: _MenuSection(
                     title: 'ACCOUNT',
                     items: [
-                      // MENU EDIT PROFILE DITAUTKAN KE EDITPROFILESCREEN
                       _MenuItem(
                         Icons.edit_outlined,
                         'Edit Profile',
                         NeoColors.secondary,
-                        () {
+                            () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) =>
-                                  EditProfileScreen(user: user),
+                                  EditProfileScreen(user: widget.user),
                             ),
                           );
                         },
@@ -114,13 +285,13 @@ class ProfileScreen extends StatelessWidget {
                         Icons.notifications_outlined,
                         'Notifications',
                         NeoColors.muted,
-                        () {},
+                            () => _showNotificationsDialog(context),
                       ),
                       _MenuItem(
                         Icons.lock_outline,
                         'Privacy & Safety',
                         NeoColors.accent,
-                        () {},
+                            () => _showPrivacyDialog(context),
                       ),
                     ],
                   ),
@@ -138,7 +309,7 @@ class ProfileScreen extends StatelessWidget {
                         Icons.help_outline,
                         'Help & Support',
                         NeoColors.muted,
-                        () {},
+                            () => _showHelpDialog(context),
                       ),
                     ],
                   ),
@@ -260,27 +431,26 @@ class _ProfileCard extends StatelessWidget {
                       alignment: Alignment.center,
                       child: user.avatarUrl.isNotEmpty
                           ? ClipRect(
-                              child: Image.network(
-                                user.avatarUrl,
-                                fit: BoxFit.cover,
-                                width: avatarSize,
-                                height: avatarSize,
-                              ),
-                            )
+                        child: Image.network(
+                          user.avatarUrl,
+                          fit: BoxFit.cover,
+                          width: avatarSize,
+                          height: avatarSize,
+                        ),
+                      )
                           : Text(
-                              initials,
-                              style: NeoTextStyles.h2.copyWith(
-                                fontSize: 32,
-                                color: NeoColors.white,
-                              ),
-                            ),
+                        initials,
+                        style: NeoTextStyles.h2.copyWith(
+                          fontSize: 32,
+                          color: NeoColors.white,
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
           ),
-
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
             child: Column(
@@ -310,7 +480,6 @@ class _ProfileCard extends StatelessWidget {
               ],
             ),
           ),
-
           Container(
             decoration: const BoxDecoration(
               border: Border(top: BorderSide(color: NeoColors.ink, width: 4)),
