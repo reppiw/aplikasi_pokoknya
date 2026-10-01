@@ -218,7 +218,7 @@ class _FriendTile extends StatelessWidget {
                           : '@${friend.username}',
                       style: NeoTextStyles.body.copyWith(
                         fontSize: 12,
-                        color: NeoColors.ink.withOpacity(0.7),
+                        color: NeoColors.ink.withValues(alpha: 0.7),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

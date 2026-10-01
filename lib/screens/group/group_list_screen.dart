@@ -3,7 +3,6 @@ import '../../core/theme/app_theme.dart';
 import '../../widgets/active_room_banner.dart';
 import '../../screens/room_editor/room_detail_screen.dart';
 import '../../screens/room_editor/room_history_screen.dart';
-import '../../models/group.dart';
 import '../../models/room.dart';
 
 class _GroupItem {

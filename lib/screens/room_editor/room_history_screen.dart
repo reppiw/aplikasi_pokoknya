@@ -43,13 +43,13 @@ class RoomHistoryScreen extends StatelessWidget {
           : ListView.separated(
         padding: const EdgeInsets.all(20),
         itemCount: history.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        separatorBuilder: (_, _) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           final item = history[index];
           return Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: item.isActive ? NeoColors.secondary.withOpacity(0.3) : NeoColors.white,
+              color: item.isActive ? NeoColors.secondary.withValues(alpha: 0.3) : NeoColors.white,
               border: NeoBorder.thick,
               boxShadow: NeoShadows.s,
             ),

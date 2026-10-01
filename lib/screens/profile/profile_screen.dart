@@ -97,7 +97,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               SwitchListTile(
                 title: Text('Push Notifications', style: NeoTextStyles.body),
                 value: _pushNotifications,
-                activeColor: NeoColors.secondary,
+                activeThumbColor: NeoColors.secondary,
                 onChanged: (val) {
                   setDialogState(() => _pushNotifications = val);
                   setState(() {});
@@ -107,7 +107,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               SwitchListTile(
                 title: Text('Email Notifications', style: NeoTextStyles.body),
                 value: _emailNotifications,
-                activeColor: NeoColors.secondary,
+                activeThumbColor: NeoColors.secondary,
                 onChanged: (val) {
                   setDialogState(() => _emailNotifications = val);
                   setState(() {});
@@ -150,7 +150,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: Text('Private Account', style: NeoTextStyles.body),
                 subtitle: const Text('Only friends can view your activity'),
                 value: _privateAccount,
-                activeColor: NeoColors.secondary,
+                activeThumbColor: NeoColors.secondary,
                 onChanged: (val) {
                   setDialogState(() => _privateAccount = val);
                   setState(() {});
@@ -161,7 +161,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: Text('Allow Direct Messages', style: NeoTextStyles.body),
                 subtitle: const Text('Receive messages from group members'),
                 value: _allowDirectMessages,
-                activeColor: NeoColors.secondary,
+                activeThumbColor: NeoColors.secondary,
                 onChanged: (val) {
                   setDialogState(() => _allowDirectMessages = val);
                   setState(() {});

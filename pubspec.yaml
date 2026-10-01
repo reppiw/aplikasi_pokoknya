@@ -22,6 +22,8 @@ dependencies:
   firebase_auth: ^6.7.0          # User authentication
   cloud_firestore: ^6.10.0       # Persistent avatar positions + group/room data
   firebase_messaging: ^16.7.0    # FCM — targeted room-ping push notifications
+  flame: ^1.38.2
+  flame_tiled: ^3.1.2
 
   # Unity integration — add flutter_unity_widget back when the Unity project
   # is ready to embed. The 2022.x release uses jcenter() which is incompatible
@@ -38,6 +40,8 @@ flutter:
 
   assets:
     - assets/Homepage_Background.jpg
+    - assets/office/                     # Tiled map + tileset
+    - assets/sprites/                    # Character & ghost sprites
 
   shaders:
     - shaders/gradient_waves.frag

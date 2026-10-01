@@ -185,7 +185,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     Text('ENABLE NOTIFICATIONS', style: NeoTextStyles.body),
                     Switch(
                       value: _notificationsEnabled,
-                      activeColor: NeoColors.secondary,
+                      activeThumbColor: NeoColors.secondary,
                       onChanged: (val) =>
                           setState(() => _notificationsEnabled = val),
                     ),

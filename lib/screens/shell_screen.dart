@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'group/group_list_screen.dart';
 import 'home/home_screen.dart';
+import 'office/office_screen.dart';
 import 'profile/profile_screen.dart';
 import 'friends/friends_screen.dart';
 import '../core/theme/app_theme.dart';
@@ -25,6 +26,7 @@ class _ShellScreenState extends State<ShellScreen> {
       const HomeScreen(),
       const FriendsScreen(),
       const GroupListScreen(),
+      const OfficeScreen(),
       ProfileScreen(onSignOut: widget.onSignOut),
     ];
 
@@ -54,6 +56,7 @@ class _NeoNavBar extends StatelessWidget {
     (icon: Icons.home_outlined, label: 'HOME'),
     (icon: Icons.people_outline, label: 'FRIENDS'),
     (icon: Icons.group_work_outlined, label: 'GROUPS'),
+    (icon: Icons.location_city_outlined, label: 'OFFICE'),
     (icon: Icons.person_outline, label: 'PROFILE'),
   ];
 
@@ -149,67 +152,5 @@ class _NavItemState extends State<_NavItem> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Stub screen
+// (Shell no longer uses the stub screen — kept as a utility for future tabs)
 // ─────────────────────────────────────────────────────────────────────────────
-
-class _StubScreen extends StatelessWidget {
-  const _StubScreen({required this.label, required this.icon});
-  final String label;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        // Background image
-        Positioned.fill(
-          child: Image.asset(
-            'assets/Homepage_Background.jpg',
-            fit: BoxFit.cover,
-          ),
-        ),
-        // Cream overlay
-        Positioned.fill(
-          child: ColoredBox(color: NeoColors.cream.withValues(alpha: 0.82)),
-        ),
-        Center(
-          child: Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: NeoColors.cream,
-              border: NeoBorder.thick,
-              boxShadow: NeoShadows.l,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: NeoColors.muted,
-                    border: NeoBorder.thick,
-                  ),
-                  child: Icon(icon, size: 40, color: NeoColors.ink),
-                ),
-                const SizedBox(height: 20),
-                Text(label, style: NeoTextStyles.h2),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: NeoColors.secondary,
-                    border: NeoBorder.thin,
-                  ),
-                  child: Text('COMING SOON', style: NeoTextStyles.label),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
