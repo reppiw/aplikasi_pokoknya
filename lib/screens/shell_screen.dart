@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'group/group_list_screen.dart';
 import 'home/home_screen.dart';
 import 'profile/profile_screen.dart';
@@ -6,7 +7,9 @@ import '../core/theme/app_theme.dart';
 
 /// Root scaffold with Neo-Brutalist bottom navigation bar.
 class ShellScreen extends StatefulWidget {
-  const ShellScreen({super.key});
+  const ShellScreen({super.key, required this.onSignOut});
+
+  final VoidCallback onSignOut;
 
   @override
   State<ShellScreen> createState() => _ShellScreenState();
@@ -15,22 +18,19 @@ class ShellScreen extends StatefulWidget {
 class _ShellScreenState extends State<ShellScreen> {
   int _currentIndex = 0;
 
-  static const _screens = <Widget>[
-    HomeScreen(),
-    _StubScreen(label: 'FRIENDS',  icon: Icons.people_outline),
-    GroupListScreen(),
-    ProfileScreen(),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final screens = <Widget>[
+      const HomeScreen(),
+      const _StubScreen(label: 'FRIENDS', icon: Icons.people_outline),
+      const GroupListScreen(),
+      ProfileScreen(onSignOut: widget.onSignOut),
+    ];
+
     return Scaffold(
       extendBody: true,
       backgroundColor: NeoColors.cream,
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: screens),
       bottomNavigationBar: _NeoNavBar(
         currentIndex: _currentIndex,
         onTap: (i) => setState(() => _currentIndex = i),
@@ -44,19 +44,16 @@ class _ShellScreenState extends State<ShellScreen> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _NeoNavBar extends StatelessWidget {
-  const _NeoNavBar({
-    required this.currentIndex,
-    required this.onTap,
-  });
+  const _NeoNavBar({required this.currentIndex, required this.onTap});
 
   final int currentIndex;
   final ValueChanged<int> onTap;
 
   static const _items = [
-    (icon: Icons.home_outlined,       label: 'HOME'),
-    (icon: Icons.people_outline,      label: 'FRIENDS'),
+    (icon: Icons.home_outlined, label: 'HOME'),
+    (icon: Icons.people_outline, label: 'FRIENDS'),
     (icon: Icons.group_work_outlined, label: 'GROUPS'),
-    (icon: Icons.person_outline,      label: 'PROFILE'),
+    (icon: Icons.person_outline, label: 'PROFILE'),
   ];
 
   @override
@@ -66,21 +63,21 @@ class _NeoNavBar extends StatelessWidget {
     return Container(
       margin: EdgeInsets.fromLTRB(16, 0, 16, bottomPad + 12),
       decoration: BoxDecoration(
-        color:  NeoColors.cream,
+        color: NeoColors.cream,
         border: NeoBorder.thick,
         boxShadow: NeoShadows.l,
       ),
       child: Row(
         children: List.generate(_items.length, (i) {
-          final item   = _items[i];
+          final item = _items[i];
           final active = i == currentIndex;
           return Expanded(
             child: _NavItem(
-              icon:    item.icon,
-              label:   item.label,
-              active:  active,
-              onTap:   () => onTap(i),
-              isLast:  i == _items.length - 1,
+              icon: item.icon,
+              label: item.label,
+              active: active,
+              onTap: () => onTap(i),
+              isLast: i == _items.length - 1,
             ),
           );
         }),
@@ -99,9 +96,9 @@ class _NavItem extends StatefulWidget {
   });
 
   final IconData icon;
-  final String   label;
-  final bool     active;
-  final bool     isLast;
+  final String label;
+  final bool active;
+  final bool isLast;
   final VoidCallback onTap;
 
   @override
@@ -116,12 +113,12 @@ class _NavItemState extends State<_NavItem> {
     final bg = widget.active ? NeoColors.secondary : NeoColors.cream;
 
     return GestureDetector(
-      onTapDown:   (_) => setState(() => _pressed = true),
-      onTapUp:     (_) => setState(() => _pressed = false),
-      onTapCancel: ()  => setState(() => _pressed = false),
-      onTap:       widget.onTap,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: widget.onTap,
       child: AnimatedContainer(
-        duration:  const Duration(milliseconds: 100),
+        duration: const Duration(milliseconds: 100),
         transform: _pressed
             ? Matrix4.translationValues(2.0, 2.0, 0)
             : Matrix4.identity(),
@@ -137,11 +134,7 @@ class _NavItemState extends State<_NavItem> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              widget.icon,
-              color: NeoColors.ink,
-              size:  22,
-            ),
+            Icon(widget.icon, color: NeoColors.ink, size: 22),
             const SizedBox(height: 3),
             Text(
               widget.label,
@@ -160,7 +153,7 @@ class _NavItemState extends State<_NavItem> {
 
 class _StubScreen extends StatelessWidget {
   const _StubScreen({required this.label, required this.icon});
-  final String   label;
+  final String label;
   final IconData icon;
 
   @override
@@ -182,8 +175,8 @@ class _StubScreen extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
-              color:     NeoColors.cream,
-              border:    NeoBorder.thick,
+              color: NeoColors.cream,
+              border: NeoBorder.thick,
               boxShadow: NeoShadows.l,
             ),
             child: Column(
@@ -192,7 +185,7 @@ class _StubScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color:  NeoColors.muted,
+                    color: NeoColors.muted,
                     border: NeoBorder.thick,
                   ),
                   child: Icon(icon, size: 40, color: NeoColors.ink),
@@ -201,15 +194,15 @@ class _StubScreen extends StatelessWidget {
                 Text(label, style: NeoTextStyles.h2),
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
-                    color:  NeoColors.secondary,
+                    color: NeoColors.secondary,
                     border: NeoBorder.thin,
                   ),
-                  child: Text(
-                    'COMING SOON',
-                    style: NeoTextStyles.label,
-                  ),
+                  child: Text('COMING SOON', style: NeoTextStyles.label),
                 ),
               ],
             ),

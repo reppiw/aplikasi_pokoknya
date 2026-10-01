@@ -21,4 +21,5 @@ void main() {
       throwsA(isA<AuthException>()),
     );
   });
+
 }
