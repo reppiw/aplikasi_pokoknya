@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/user.dart';
 import '../../core/theme/app_theme.dart';
+import 'edit_profile_screen.dart';
 
 const _kCurrentUser = AppUser(
   id:          'demo-user-1',
@@ -66,7 +67,20 @@ class ProfileScreen extends StatelessWidget {
                   child: _MenuSection(
                     title: 'ACCOUNT',
                     items: [
-                      _MenuItem(Icons.edit_outlined,          'Edit Profile',      NeoColors.secondary, () {}),
+                      // MENU EDIT PROFILE DITAUTKAN KE EDITPROFILESCREEN
+                      _MenuItem(
+                        Icons.edit_outlined,
+                        'Edit Profile',
+                        NeoColors.secondary,
+                            () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => EditProfileScreen(user: user),
+                            ),
+                          );
+                        },
+                      ),
                       _MenuItem(Icons.notifications_outlined, 'Notifications',     NeoColors.muted,     () {}),
                       _MenuItem(Icons.lock_outline,           'Privacy & Safety',  NeoColors.accent,    () {}),
                     ],
@@ -153,11 +167,9 @@ class _ProfileCard extends StatelessWidget {
         ? '?'
         : user.displayName.trim()[0].toUpperCase();
 
-    // Avatar sits centred, half over the yellow band and half below it.
-    // Use a Stack with a fixed height so no negative margins are needed.
     const double avatarSize    = 72.0;
     const double bandHeight    = 80.0;
-    const double avatarOverlap = avatarSize / 2; // 36px hangs below the band
+    const double avatarOverlap = avatarSize / 2;
 
     return Container(
       decoration: BoxDecoration(
@@ -167,12 +179,10 @@ class _ProfileCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // ── Yellow band + overlapping avatar ───────────────────────
           SizedBox(
             height: bandHeight + avatarOverlap,
             child: Stack(
               children: [
-                // Yellow band
                 Positioned(
                   top: 0, left: 0, right: 0,
                   height: bandHeight,
@@ -185,7 +195,6 @@ class _ProfileCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                // Avatar — centred, starts at mid-band so half hangs below
                 Positioned(
                   top:   bandHeight - avatarOverlap,
                   left:  0,
@@ -202,20 +211,20 @@ class _ProfileCard extends StatelessWidget {
                       alignment: Alignment.center,
                       child: user.avatarUrl.isNotEmpty
                           ? ClipRect(
-                              child: Image.network(
-                                user.avatarUrl,
-                                fit:    BoxFit.cover,
-                                width:  avatarSize,
-                                height: avatarSize,
-                              ),
-                            )
+                        child: Image.network(
+                          user.avatarUrl,
+                          fit:    BoxFit.cover,
+                          width:  avatarSize,
+                          height: avatarSize,
+                        ),
+                      )
                           : Text(
-                              initials,
-                              style: NeoTextStyles.h2.copyWith(
-                                fontSize: 32,
-                                color:    NeoColors.white,
-                              ),
-                            ),
+                        initials,
+                        style: NeoTextStyles.h2.copyWith(
+                          fontSize: 32,
+                          color:    NeoColors.white,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -223,7 +232,6 @@ class _ProfileCard extends StatelessWidget {
             ),
           ),
 
-          // ── Name + id badge ────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
             child: Column(
@@ -251,7 +259,6 @@ class _ProfileCard extends StatelessWidget {
             ),
           ),
 
-          // ── Stats row ──────────────────────────────────────────────
           Container(
             decoration: const BoxDecoration(
               border: Border(top: BorderSide(color: NeoColors.ink, width: 4)),
@@ -377,7 +384,6 @@ class _MenuRowState extends State<_MenuRow> {
         padding:  const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: Row(
           children: [
-            // Icon block
             Container(
               width:  38,
               height: 38,
