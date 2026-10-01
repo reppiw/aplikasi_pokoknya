@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../game/office_game.dart';
+import '../../game/components/office_map.dart';
 import '../../models/avatar_state.dart';
 
 /// The virtual office screen — hosts the Flame game inside a Flutter scaffold.
@@ -42,9 +43,12 @@ class _OfficeScreenState extends State<OfficeScreen> {
       backgroundColor: NeoColors.ink,
       body: Stack(
         children: [
-          // ── 1. Flame game ─────────────────────────────────────────────────
+          // ── 1. Flame game (autofocus so WASD works immediately) ──────────
           Positioned.fill(
-            child: GameWidget<OfficeGame>(game: _game),
+            child: GameWidget<OfficeGame>(
+              game: _game,
+              autofocus: true,
+            ),
           ),
 
           // ── 2. Top bar ────────────────────────────────────────────────────
@@ -68,40 +72,27 @@ class _OfficeScreenState extends State<OfficeScreen> {
   }
 
   /// Demo ghost data so the office isn't empty while Firebase is not yet wired.
-  List<AvatarState> _demoGhosts() => [
-        AvatarState(
-          userId: 'alex_rv',
-          x: 120,
-          y: 180,
-          roomId: 'free',
-          isOnline: true,
-          lastUpdated: DateTime.now().subtract(const Duration(minutes: 2)),
-        ),
-        AvatarState(
-          userId: 'sarah_ui',
-          x: 450,
-          y: 120,
-          roomId: 'looking_for_games',
-          isOnline: false,
-          lastUpdated: DateTime.now().subtract(const Duration(hours: 1)),
-        ),
-        AvatarState(
-          userId: 'ricopratama',
-          x: 420,
-          y: 600,
-          roomId: 'deep_work',
-          isOnline: true,
-          lastUpdated: DateTime.now().subtract(const Duration(minutes: 10)),
-        ),
-        AvatarState(
-          userId: 'jess_t',
-          x: 140,
-          y: 580,
-          roomId: 'busy',
-          isOnline: false,
-          lastUpdated: DateTime.now().subtract(const Duration(hours: 3)),
-        ),
-      ];
+  List<AvatarState> _demoGhosts() {
+    // Place ghosts at real grid positions using isoToWorld
+    final alex    = isoToWorld(2, 2);  // Lounge
+    final sarah   = isoToWorld(11, 3); // Game Room
+    final rico    = isoToWorld(11, 13);// Deep Work
+    final jessica = isoToWorld(3, 13); // Meeting Room
+    return [
+      AvatarState(userId: 'alex_rv',    x: alex.x,    y: alex.y,
+          roomId: 'free',              isOnline: true,
+          lastUpdated: DateTime.now().subtract(const Duration(minutes: 2))),
+      AvatarState(userId: 'sarah_ui',   x: sarah.x,   y: sarah.y,
+          roomId: 'looking_for_games', isOnline: false,
+          lastUpdated: DateTime.now().subtract(const Duration(hours: 1))),
+      AvatarState(userId: 'ricopratama',x: rico.x,    y: rico.y,
+          roomId: 'deep_work',         isOnline: true,
+          lastUpdated: DateTime.now().subtract(const Duration(minutes: 10))),
+      AvatarState(userId: 'jess_t',     x: jessica.x, y: jessica.y,
+          roomId: 'busy',              isOnline: false,
+          lastUpdated: DateTime.now().subtract(const Duration(hours: 3))),
+    ];
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -134,6 +125,8 @@ class _TopBar extends StatelessWidget {
             ),
             child: Text('OFFICE', style: NeoTextStyles.label),
           ),
+          const SizedBox(width: 10),
+          Text('WASD to move', style: NeoTextStyles.label.copyWith(fontSize: 9)),
           const Spacer(),
           GestureDetector(
             onTap: () => Navigator.of(context).maybePop(),

@@ -40,8 +40,11 @@ flutter:
 
   assets:
     - assets/Homepage_Background.jpg
-    - assets/office/                     # Tiled map + tileset
-    - assets/sprites/                    # Character & ghost sprites
+    - assets/office/
+    - assets/sprites/
+    - assets/Isometric/
+    - assets/Angle/
+    - assets/Characters/Human/
 
   shaders:
     - shaders/gradient_waves.frag

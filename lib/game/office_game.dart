@@ -1,22 +1,21 @@
 import 'package:flame/game.dart';
 import 'package:flame/components.dart';
-import 'package:flame/experimental.dart';
+import 'package:flame/input.dart';
 import 'package:flutter/material.dart';
 
 import 'components/office_map.dart';
 import 'components/player_component.dart';
 import 'components/ghost_component.dart';
-import 'components/joystick_controller.dart';
 import '../models/avatar_state.dart';
 import '../services/room_session_manager.dart';
 
-/// The world is a fixed 600×800 logical canvas.
-/// Flame scales it to fill whatever screen it runs on.
-const kMapWidth  = 600.0;
-const kMapHeight = 800.0;
+// Fixed logical resolution — Flame scales this to fill the device screen.
+// Landscape-ish ratio works well for isometric maps.
+const kMapWidth  = 800.0;
+const kMapHeight = 600.0;
 
 /// Root Flame game. Mounted inside OfficeScreen via GameWidget.
-class OfficeGame extends FlameGame {
+class OfficeGame extends FlameGame with HasKeyboardHandlerComponents {
   OfficeGame({
     required this.username,
     this.initialAvatarStates = const [],
@@ -34,7 +33,6 @@ class OfficeGame extends FlameGame {
   final ValueNotifier<String?> activeRoomNotifier = ValueNotifier(null);
 
   late final PlayerComponent _player;
-  late final JoystickController _joystick;
   final Map<String, GhostComponent> _ghosts = {};
 
   @override
@@ -42,29 +40,24 @@ class OfficeGame extends FlameGame {
 
   @override
   Future<void> onLoad() async {
-    // 1. Office map fills the world
+    // Tell Flame to look in assets/ directly instead of assets/images/
+    images.prefix = 'assets/';
+
+    // 1. Office map
     final map = OfficeMap(onRoomChanged: _onRoomChanged);
     await world.add(map);
 
-    // 2. Local player — starts in the Lounge (top-left quadrant centre)
+    // 2. Player — start at grid (3, 3) in the Lounge
     _player = PlayerComponent(
       username: username,
-      startPosition: Vector2(150, 200),
+      startPosition: isoToWorld(3, 3),
     );
     await world.add(_player);
 
-    // 3. Camera follows the player, clamped to map bounds
+    // 3. Camera follows player
     camera.follow(_player);
-    camera.setBounds(
-      Rectangle.fromLTWH(0, 0, kMapWidth, kMapHeight),
-    );
 
-    // 4. Virtual joystick — lives in HUD (viewport) space, not world space
-    _joystick = JoystickController();
-    await camera.viewport.add(_joystick);
-    _player.joystick = _joystick;
-
-    // 5. Spawn initial ghosts
+    // 4. Initial ghost avatars
     for (final state in initialAvatarStates) {
       await _spawnGhost(state);
     }
@@ -84,8 +77,7 @@ class OfficeGame extends FlameGame {
       }
     }
     final activeIds = states.map((s) => s.userId).toSet();
-    final toRemove = _ghosts.keys.where((id) => !activeIds.contains(id)).toList();
-    for (final id in toRemove) {
+    for (final id in _ghosts.keys.where((id) => !activeIds.contains(id)).toList()) {
       _ghosts[id]?.removeFromParent();
       _ghosts.remove(id);
     }

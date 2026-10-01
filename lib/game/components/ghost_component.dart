@@ -1,87 +1,92 @@
+import 'dart:math' as math;
+
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/avatar_state.dart';
+import '../office_game.dart';
+import 'office_map.dart';
 
-/// A ghost avatar representing another user's last known position.
+/// Ghost avatar for another user using a different Human colour variant.
+///
+/// Colour variants 1–7 are assigned by hashing the userId so each
+/// user consistently gets the same character skin.
 ///
 /// Visual rules:
-///   isOnline  → semi-transparent blue tint, subtle pulse animation
-///   !isOnline → grey, faded, gentle float animation
-///
-/// Phase 2: replace CircleComponent with a SpriteComponent using the
-///           character sprite sheet with a different tint/shader.
-class GhostComponent extends PositionComponent {
-  GhostComponent({required this.state})
-      : super(
-          position: Vector2(state.x, state.y),
-          size: Vector2.all(32),
-          anchor: Anchor.center,
-        );
+///   isOnline  → 85% opacity, idle animation
+///   !isOnline → 35% opacity, gentle sine-wave float
+class GhostComponent extends PositionComponent with HasGameReference<OfficeGame> {
+  GhostComponent({required this._state})
+      : super(anchor: Anchor.bottomCenter);
 
-  AvatarState state;
+  AvatarState _state;
 
-  late CircleComponent _body;
+  late SpriteAnimationComponent _sprite;
   late TextComponent _label;
 
-  // Float animation state (for offline ghosts)
   double _floatTimer = 0;
-  static const _floatAmplitude = 3.0;
-  static const _floatSpeed = 2.0;
 
   @override
   Future<void> onLoad() async {
-    _body = CircleComponent(
-      radius: 14,
-      paint: _paintFor(state),
-      anchor: Anchor.center,
+    position = Vector2(_state.x, _state.y);
+
+    final variant = _variantFor(_state.userId);
+
+    // Uses game.images so the prefix override ('assets/') applies
+    final idleImg = await game.images
+        .load('Characters/Human/Human_${variant}_Idle0.png');
+    final idleAnim = SpriteAnimation.spriteList(
+      [Sprite(idleImg)],
+      stepTime: 1.0,
+      loop: true,
     );
-    add(_body);
+
+    _sprite = SpriteAnimationComponent(
+      animation: idleAnim,
+      size: Vector2(kTileW, kTileH),
+      anchor: Anchor.bottomCenter,
+    );
+    _sprite.opacity = _state.isOnline ? 0.85 : 0.35;
+    add(_sprite);
 
     _label = TextComponent(
-      text: state.userId,
+      text: _state.userId,
       anchor: Anchor.bottomCenter,
-      position: Vector2(0, -16),
+      position: Vector2(0, -kTileH + 20),
       textRenderer: TextPaint(
         style: TextStyle(
-          color: state.isOnline
-              ? const Color(0xFF4488FF)
-              : const Color(0xFF888888),
-          fontSize: 9,
+          color: _state.isOnline
+              ? const Color(0xFF88DDFF)
+              : const Color(0xFFAAAAAA),
+          fontSize: 10,
           fontWeight: FontWeight.w600,
+          shadows: const [Shadow(color: Color(0xFF000000), blurRadius: 4)],
         ),
       ),
     );
     add(_label);
   }
 
+  /// Called by OfficeGame when a fresh AvatarState arrives for this user.
+  void updateState(AvatarState newState) {
+    _state = newState;
+    position = Vector2(newState.x, newState.y);
+    _sprite.opacity = newState.isOnline ? 0.85 : 0.35;
+  }
+
   @override
   void update(double dt) {
     super.update(dt);
-    if (!state.isOnline) {
-      // Gentle vertical float for offline ghosts
-      _floatTimer += dt * _floatSpeed;
-      _body.position = Vector2(
-        0,
-        _floatAmplitude * (0 - 1) * (_floatTimer % (2 * 3.14159)).abs() /
-                3.14159 +
-            _floatAmplitude,
-      );
+    if (!_state.isOnline) {
+      _floatTimer += dt * 1.8;
+      _sprite.position = Vector2(0, -4 + 4 * math.sin(_floatTimer));
     }
   }
 
-  /// Called by OfficeGame when a new AvatarState arrives for this user.
-  void updateState(AvatarState newState) {
-    state = newState;
-    // Animate to new position
-    position = Vector2(newState.x, newState.y);
-    _body.paint = _paintFor(newState);
-  }
-
-  static Paint _paintFor(AvatarState state) {
-    return Paint()
-      ..color = state.isOnline
-          ? const Color(0xFF6CB4FF).withValues(alpha: 0.75)
-          : const Color(0xFFAAAAAA).withValues(alpha: 0.4);
+  /// Deterministically assign colour variant 1–7 from userId hash.
+  /// Variant 0 is reserved for the local player.
+  static int _variantFor(String userId) {
+    final hash = userId.codeUnits.fold(0, (a, b) => a + b);
+    return (hash % 7) + 1;
   }
 }
