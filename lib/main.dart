@@ -5,6 +5,7 @@ import 'core/theme/app_theme.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/shell_screen.dart';
 import 'services/auth_service.dart';
+import 'screens/opening_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,6 +21,7 @@ class App extends StatefulWidget {
 
 class _AppState extends State<App> {
   late bool _isAuthenticated = AuthService.instance.isSignedIn;
+  late bool _showOpening = true;
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +29,16 @@ class _AppState extends State<App> {
       title: 'Koboted',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      home: _isAuthenticated
+      home: _showOpening
+            ? OpeningScreen(
+              isAuthenticated: _isAuthenticated,
+              onFinished: () {
+                setState(() {
+                  _showOpening = false;
+                });
+              },
+            )
+          : _isAuthenticated
           ? ShellScreen(
               onSignOut: () {
                 AuthService.instance.signOut();
