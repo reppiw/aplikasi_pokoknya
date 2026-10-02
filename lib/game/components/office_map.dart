@@ -1,47 +1,126 @@
+import 'dart:ui' show BlendMode, Color, ColorFilter, Paint;
+
 import 'package:flame/components.dart';
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 
 import '../office_game.dart';
 
 // ── Isometric grid constants ──────────────────────────────────────────────────
 //
-// Each Kenney tile PNG is 256×512px.
-// The visible diamond sits in the top 256×128px (2:1 ratio).
-// We use those as our tile step values when converting grid → screen.
+// Each Kenney tile PNG is 256×512px, rendered at half size (128×256).
+// The visible floor diamond is the top 128×64px of the rendered sprite (2:1).
 //
-//   screenX = (col - row) * kTileStepX
-//   screenY = (col + row) * kTileStepY
+//   worldX = (col - row) * kTileStepX
+//   worldY = (col + row) * kTileStepY
 //
-// Origin (0,0) is the top-most diamond tip of the grid.
+// isoToWorld() returns the TOP-LEFT corner of the tile's sprite.
 
-const double kTileStepX = 128.0; // half of tile width  (256/2)
-const double kTileStepY = 64.0;  // quarter of tile PNG  (256/4)
-
-// Rendered sprite size — we scale the 256×512 PNG down to keep the world
-// manageable on a phone screen.
 const double kTileW = 128.0;
 const double kTileH = 256.0;
+
+// Derived from the sprite size so there is one source of truth.
+const double kTileStepX = kTileW / 2; // 64 — half the diamond width
+const double kTileStepY = kTileH / 8; // 32 — half the diamond height
 
 // Grid dimensions
 const int kCols = 16;
 const int kRows = 20;
 
+/// When true, walls that face the camera (south/east outer walls and the two
+/// interior dividers) use half-height pieces so they don't hide the rooms
+/// behind them. Set to false to get the original full-height look.
+const bool kCutawayWalls = true;
+
 /// Converts isometric grid coordinates to world-space screen position.
 /// The returned position is the top-left corner for a kTileW×kTileH sprite.
 Vector2 isoToWorld(int col, int row) {
   return Vector2(
-    (col - row) * (kTileW / 2),
-    (col + row) * (kTileH / 8),
+    (col - row) * kTileStepX,
+    (col + row) * kTileStepY,
   );
 }
 
-/// Room zones in grid coordinates (col, row) — used for player detection.
-/// Each zone is defined as a list of (col, row) cells.
-const _roomZones = {
-  'free':              _Rect(0, 0, 7, 7),   // Lounge — top-left
-  'looking_for_games': _Rect(9, 0, 15, 7),  // Game Room — top-right
-  'busy':              _Rect(0, 9, 7, 19),  // Meeting — bottom-left
-  'deep_work':         _Rect(9, 9, 15, 19), // Deep Work — bottom-right
-};
+/// Exact inverse of [isoToWorld]: returns the nearest grid cell for a world
+/// position, using the same convention (position = tile sprite's top-left).
+(int col, int row) worldToGrid(Vector2 p) {
+  final fx = p.x / kTileStepX; // col - row
+  final fy = p.y / kTileStepY; // col + row
+  return (((fx + fy) / 2).round(), ((fy - fx) / 2).round());
+}
+
+// ── Layout constants (single source of truth) ────────────────────────────────
+//
+// Doors are defined once and shared by the outer walls and the dividers, so the
+// openings always line up and form straight corridors through the building.
+
+const int _dividerCol = 8; // vertical divider between west and east rooms
+const int _dividerRow = 8; // horizontal divider between north and south rooms
+
+/// Door columns: openings in the horizontal divider AND the north/south walls.
+const List<int> _doorCols = [4, 12];
+
+/// Door rows: openings in the vertical divider AND the west/east walls.
+const List<int> _doorRows = [4, 14];
+
+/// Start index of each 3-tile window group (left / middle / right).
+const List<int> _northWindows = [1, 5, 9];
+const List<int> _sideWindows = [1, 5, 10, 15];
+
+// ── Rooms ────────────────────────────────────────────────────────────────────
+
+class _Room {
+  const _Room(this.id, this.name, this.c1, this.r1, this.c2, this.r2, this.tint);
+
+  final String id; // status id reported through onRoomChanged
+  final String name;
+  final int c1, r1, c2, r2;
+  final Color tint; // subtle floor tint so rooms read as distinct spaces
+
+  bool contains(int col, int row) =>
+      col >= c1 && col <= c2 && row >= r1 && row <= r2;
+}
+
+const _rooms = <_Room>[
+  _Room('free', 'Lounge', 1, 1, _dividerCol - 1, _dividerRow - 1,
+      Color(0xFFFFF0E0)),
+  _Room('looking_for_games', 'Game Room', _dividerCol + 1, 1, kCols - 2,
+      _dividerRow - 1, Color(0xFFEBE0FF)),
+  _Room('busy', 'Meeting Room', 1, _dividerRow + 1, _dividerCol - 1, kRows - 2,
+      Color(0xFFE0EEFF)),
+  _Room('deep_work', 'Deep Work', _dividerCol + 1, _dividerRow + 1, kCols - 2,
+      kRows - 2, Color(0xFFE0F5E8)),
+];
+
+_Room? _roomAt(int col, int row) {
+  for (final room in _rooms) {
+    if (room.contains(col, row)) return room;
+  }
+  return null;
+}
+
+// ── Tile placement records ───────────────────────────────────────────────────
+
+/// Draw layers. Within the same iso depth (col + row) a later layer draws on
+/// top of an earlier one.
+enum _Layer { floor, wall, decor, prop }
+
+class _Placement {
+  const _Placement(this.sprite, this.col, this.row, this.layer, {this.tint});
+
+  final String sprite;
+  final int col, row;
+  final _Layer layer;
+  final Color? tint;
+
+  /// Painter's-algorithm priority for isometric rendering.
+  /// Floors always sit below everything else; everything else is sorted by
+  /// iso depth (col + row) first, then by layer.
+  int get priority => layer == _Layer.floor
+      ? col + row
+      : 100 + (col + row) * 4 + layer.index;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 class OfficeMap extends Component with HasGameReference<OfficeGame> {
   OfficeMap({required this.onRoomChanged});
@@ -50,199 +129,381 @@ class OfficeMap extends Component with HasGameReference<OfficeGame> {
 
   String? _currentRoomId;
 
-  // Loaded sprites cached here so we don't reload per-cell
-  late final Map<String, Sprite> _sprites;
+  final List<_Placement> _placements = [];
+  final Set<int> _solid = {}; // row * kCols + col of blocked cells
+  final Map<Color, Paint> _tintPaints = {};
 
   @override
   Future<void> onLoad() async {
-    // ── Pre-load all tile sprites we'll use ─────────────────────────────────
-    _sprites = {
-      'floor_N':       Sprite(await game.images.load('Isometric/floor_N.png')),
-      'floor_E':       Sprite(await game.images.load('Isometric/floor_E.png')),
-      'wall_N':        Sprite(await game.images.load('Isometric/wall_N.png')),
-      'wall_E':        Sprite(await game.images.load('Isometric/wall_E.png')),
-      'wallCorner_N':  Sprite(await game.images.load('Isometric/wallCorner_N.png')),
-      'wallCorner_E':  Sprite(await game.images.load('Isometric/wallCorner_E.png')),
-      'wallCorner_S':  Sprite(await game.images.load('Isometric/wallCorner_S.png')),
-      'wallCorner_W':  Sprite(await game.images.load('Isometric/wallCorner_W.png')),
-      'doorOpen_N':    Sprite(await game.images.load('Isometric/doorOpen_N.png')),
-      'doorOpen_E':    Sprite(await game.images.load('Isometric/doorOpen_E.png')),
-      'doorClosed_N':  Sprite(await game.images.load('Isometric/doorClosed_N.png')),
-      'doorClosed_E':  Sprite(await game.images.load('Isometric/doorClosed_E.png')),
-      'block_N':       Sprite(await game.images.load('Isometric/block_N.png')),
-      'crate_N':       Sprite(await game.images.load('Isometric/crate_N.png')),
-      'crate_E':       Sprite(await game.images.load('Isometric/crate_E.png')),
-      'fence_N':       Sprite(await game.images.load('Isometric/fence_N.png')),
-      'fence_E':       Sprite(await game.images.load('Isometric/fence_E.png')),
-    };
+    // 1. Describe the whole layout (synchronous, no assets needed yet).
+    _buildFloor();
+    _buildOuterWalls();
+    _buildRoomDividers();
+    _buildLounge();
+    _buildGameRoom();
+    _buildMeetingRoom();
+    _buildDeepWork();
 
-    // ── Build the map ────────────────────────────────────────────────────────
-    await _buildFloor();
-    await _buildWalls();
-    await _buildRoomDividers();
-    await _buildFurniture();
+    // 2. Load only the sprites the layout actually uses, in parallel.
+    final sprites = await _loadSprites({for (final p in _placements) p.sprite});
+
+    // 3. Turn placements into components.
+    final components = <Component>[];
+    for (final p in _placements) {
+      final sprite = sprites[p.sprite];
+      if (sprite == null) continue;
+
+      components.add(SpriteComponent(
+        sprite: sprite,
+        position: isoToWorld(p.col, p.row),
+        size: Vector2(kTileW, kTileH),
+        priority: p.priority,
+        paint: p.tint == null ? null : _paintFor(p.tint!),
+      ));
+    }
+    addAll(components);
+    _placements.clear();
   }
+
+  // ── Sprite loading ─────────────────────────────────────────────────────────
+
+  Future<Sprite?> _tryLoadSprite(String name) async {
+    try {
+      return Sprite(await game.images.load('Isometric/$name.png'));
+    } catch (_) {
+      if (kDebugMode) {
+        debugPrint('OfficeMap: missing sprite "Isometric/$name.png"');
+      }
+      return null;
+    }
+  }
+
+  Future<Map<String, Sprite>> _loadSprites(Set<String> names) async {
+    final list = names.toList();
+    final results = await Future.wait(list.map(_tryLoadSprite));
+    return {
+      for (var i = 0; i < list.length; i++)
+        if (results[i] != null) list[i]: results[i]!,
+    };
+  }
+
+  Paint _paintFor(Color tint) => _tintPaints.putIfAbsent(
+        tint,
+        () => Paint()..colorFilter = ColorFilter.mode(tint, BlendMode.modulate),
+      );
+
+  // ── Placement helpers ──────────────────────────────────────────────────────
+
+  void _place(
+    String sprite,
+    int col,
+    int row,
+    _Layer layer, {
+    bool solid = false,
+    Color? tint,
+  }) {
+    assert(
+      col >= 0 && col < kCols && row >= 0 && row < kRows,
+      'Tile out of grid: $sprite @ ($col, $row)',
+    );
+    _placements.add(_Placement(sprite, col, row, layer, tint: tint));
+    if (solid) _solid.add(row * kCols + col);
+  }
+
+  void _wall(String sprite, int col, int row, {bool solid = true}) =>
+      _place(sprite, col, row, _Layer.wall, solid: solid);
+
+  /// Blocking furniture.
+  void _prop(String sprite, int col, int row) =>
+      _place(sprite, col, row, _Layer.prop, solid: true);
+
+  /// Furniture the player can walk onto (chairs).
+  void _chair(String sprite, int col, int row) =>
+      _place(sprite, col, row, _Layer.prop);
+
+  /// Flat markers (room signs) — never block movement.
+  void _decor(String sprite, int col, int row) =>
+      _place(sprite, col, row, _Layer.decor);
 
   // ── Floor ──────────────────────────────────────────────────────────────────
 
-  Future<void> _buildFloor() async {
+  void _buildFloor() {
     for (int row = 0; row < kRows; row++) {
       for (int col = 0; col < kCols; col++) {
-        // Alternate N/E orientations for a checker-like floor texture
-        final tileName = (col + row).isEven ? 'floor_N' : 'floor_E';
-        _addTile(tileName, col, row, priority: 0);
+        // Subtle checker using the two floor orientations.
+        final tile = (col + row).isEven ? 'floor_N' : 'floor_E';
+        _place(tile, col, row, _Layer.floor, tint: _roomAt(col, row)?.tint);
       }
     }
   }
 
-  // ── Outer walls ────────────────────────────────────────────────────────────
+  // ── Walls ──────────────────────────────────────────────────────────────────
 
-  Future<void> _buildWalls() async {
-    // Top-left corner
-    _addTile('wallCorner_N', 0, 0, priority: 10);
-
-    // Top edge — wall_N along row=0 (north face)
-    for (int col = 1; col < kCols - 1; col++) {
-      // Door openings at room centres
-      if (col == 4 || col == 12) {
-        _addTile('doorOpen_N', col, 0, priority: 10);
-      } else {
-        _addTile('wall_N', col, 0, priority: 10);
-      }
+  /// Returns the window piece for index [i] if it falls inside a 3-tile window
+  /// group starting at any of [starts]; otherwise null.
+  String? _windowPiece(int i, List<int> starts, String suffix) {
+    for (final s in starts) {
+      if (i == s) return 'windowLeft_$suffix';
+      if (i == s + 1) return 'windowMiddle_$suffix';
+      if (i == s + 2) return 'windowRight_$suffix';
     }
+    return null;
+  }
 
-    // Top-right corner
-    _addTile('wallCorner_E', kCols - 1, 0, priority: 10);
+  /// Builds one straight run of wall.
+  ///
+  /// [alongCols] true  → runs along the columns at a fixed [fixed] row  (suffix N)
+  /// [alongCols] false → runs along the rows at a fixed [fixed] column (suffix E)
+  ///
+  /// [doors]     openings along the run.
+  /// [doorways]  use the arched doorway set (dividers) instead of plain doors.
+  /// [half]      use half-height wall pieces; doors become empty gaps.
+  void _wallRun({
+    required bool alongCols,
+    required int fixed,
+    required int from,
+    required int to,
+    List<int> doors = const [],
+    bool doorways = false,
+    List<int> windowStarts = const [],
+    bool half = false,
+  }) {
+    final s = alongCols ? 'N' : 'E';
 
-    // Right edge — wall_E along col=kCols-1
-    for (int row = 1; row < kRows - 1; row++) {
-      if (row == 4 || row == 14) {
-        _addTile('doorOpen_E', kCols - 1, row, priority: 10);
-      } else {
-        _addTile('wall_E', kCols - 1, row, priority: 10);
+    for (int i = from; i <= to; i++) {
+      final col = alongCols ? i : fixed;
+      final row = alongCols ? fixed : i;
+
+      if (doors.contains(i)) {
+        if (doorways) {
+          _wall('doorwayBottom_$s', col, row, solid: false);
+        } else if (!half) {
+          _wall('doorOpen_$s', col, row, solid: false);
+        }
+        // Half walls: the door is simply a gap.
+        continue;
       }
-    }
 
-    // Bottom-right corner
-    _addTile('wallCorner_S', kCols - 1, kRows - 1, priority: 10);
-
-    // Bottom edge — wall_N (south face, mirrored) along row=kRows-1
-    for (int col = kCols - 2; col > 0; col--) {
-      _addTile('wall_N', col, kRows - 1, priority: 10);
-    }
-
-    // Bottom-left corner
-    _addTile('wallCorner_W', 0, kRows - 1, priority: 10);
-
-    // Left edge — wall_E (west face) along col=0
-    for (int row = kRows - 2; row > 0; row--) {
-      if (row == 4 || row == 14) {
-        _addTile('doorOpen_E', 0, row, priority: 10);
-      } else {
-        _addTile('wall_E', 0, row, priority: 10);
+      // Tile immediately before an arched opening — the doorway jamb.
+      if (doorways && doors.contains(i + 1)) {
+        _wall('doorway_$s', col, row);
+        continue;
       }
+
+      final window = half ? null : _windowPiece(i, windowStarts, s);
+      _wall(window ?? (half ? 'wallHalf_$s' : 'wall_$s'), col, row);
     }
   }
 
-  // ── Room dividers (internal walls with door gaps) ──────────────────────────
+  void _buildOuterWalls() {
+    // Corners
+    _wall('wallCorner_N', 0, 0);
+    _wall('wallCorner_E', kCols - 1, 0);
+    _wall('wallCorner_S', kCols - 1, kRows - 1);
+    _wall('wallCorner_W', 0, kRows - 1);
 
-  Future<void> _buildRoomDividers() async {
-    // Vertical divider at col=8 (between left/right rooms)
-    for (int row = 1; row < kRows - 1; row++) {
-      if (row == 4 || row == 14) {
-        _addTile('doorOpen_E', 8, row, priority: 10);
-      } else {
-        _addTile('fence_E', 8, row, priority: 10);
-      }
+    // Back walls (north + west): always full height, with windows and doors.
+    _wallRun(
+      alongCols: true,
+      fixed: 0,
+      from: 1,
+      to: kCols - 2,
+      doors: _doorCols,
+      windowStarts: _northWindows,
+    );
+    _wallRun(
+      alongCols: false,
+      fixed: 0,
+      from: 1,
+      to: kRows - 2,
+      doors: _doorRows,
+      windowStarts: _sideWindows,
+    );
+
+    // Front walls (south + east): cut away so they don't hide the floor.
+    _wallRun(
+      alongCols: true,
+      fixed: kRows - 1,
+      from: 1,
+      to: kCols - 2,
+      doors: _doorCols,
+      windowStarts: _northWindows,
+      half: kCutawayWalls,
+    );
+    _wallRun(
+      alongCols: false,
+      fixed: kCols - 1,
+      from: 1,
+      to: kRows - 2,
+      doors: _doorRows,
+      windowStarts: _sideWindows,
+      half: kCutawayWalls,
+    );
+  }
+
+  // Interior dividers. Both include the (8, 8) junction tile, so the two walls
+  // overlap there and form a proper cross.
+  void _buildRoomDividers() {
+    _wallRun(
+      alongCols: false,
+      fixed: _dividerCol,
+      from: 1,
+      to: kRows - 2,
+      doors: _doorRows,
+      doorways: true,
+      half: kCutawayWalls,
+    );
+    _wallRun(
+      alongCols: true,
+      fixed: _dividerRow,
+      from: 1,
+      to: kCols - 2,
+      doors: _doorCols,
+      doorways: true,
+      half: kCutawayWalls,
+    );
+  }
+
+  // ── Furniture ──────────────────────────────────────────────────────────────
+
+  // Lounge (cols 1–7, rows 1–7)
+  // A comfortable corner seating area: column pillars + slab benches + crates.
+  void _buildLounge() {
+    // Corner columns as décor pillars
+    _prop('column_N', 2, 2);
+    _prop('column_N', 6, 2);
+    _prop('column_N', 2, 6);
+
+    // Slab benches along the north-west walls
+    for (int col = 3; col <= 5; col++) {
+      _prop('slab_N', col, 2);
+    }
+    for (int row = 3; row <= 5; row++) {
+      _prop('slab_E', 2, row);
     }
 
-    // Horizontal divider at row=8 (between top/bottom rooms)
-    for (int col = 1; col < kCols - 1; col++) {
-      if (col == 4 || col == 12) {
-        _addTile('doorOpen_N', col, 8, priority: 10);
-      } else {
-        _addTile('fence_N', col, 8, priority: 10);
-      }
+    // Central low table
+    _prop('slabHalf_N', 4, 4);
+    _prop('slabHalf_E', 5, 4);
+
+    // A crate stack in the corner as storage
+    _prop('crate_N', 6, 6);
+    _prop('crate_E', 6, 5);
+
+    // Room sign
+    _decor('arrowWall_N', 3, 1);
+  }
+
+  // Game Room (cols 9–14, rows 1–7)
+  // Arcade stations: column pairs as cabinet stands, blocks as screens/seats.
+  void _buildGameRoom() {
+    // Station 1 — top cluster
+    _prop('columnCorner_N', 10, 2);
+    _prop('columnCorner_E', 11, 2);
+    _prop('block_N', 10, 3);
+    _prop('blockHalf_N', 11, 3);
+
+    // Station 2
+    _prop('columnCorner_N', 13, 2);
+    _prop('columnCorner_E', 14, 2);
+    _prop('block_E', 13, 3);
+    _prop('blockHalf_E', 14, 3);
+
+    // Station 3 — lower cluster
+    _prop('columnCorner_S', 10, 5);
+    _prop('columnCorner_W', 11, 5);
+    _prop('block_N', 10, 6);
+    _prop('blockHalf_N', 11, 6);
+
+    // Central crate for props
+    _prop('crate_N', 12, 4);
+
+    // Pole lights
+    _prop('pole_N', 9, 1);
+    _prop('pole_E', 14, 6);
+
+    // Room sign
+    _decor('arrowWall_E', 14, 1);
+  }
+
+  // Meeting Room (cols 1–7, rows 9–18)
+  // Long conference table with chairs (blockHalf) around it.
+  void _buildMeetingRoom() {
+    // Table surface — two slab rows
+    for (int col = 3; col <= 6; col++) {
+      _prop('slab_N', col, 12);
+      _prop('slab_N', col, 13);
     }
+    // Head-of-table end
+    _prop('slabHalf_E', 2, 12);
+    _prop('slabHalf_E', 2, 13);
+
+    // Chairs on both long sides of the table (walkable so players can sit)
+    for (int col = 3; col <= 6; col++) {
+      _chair('blockHalf_N', col, 11);
+      _chair('blockHalf_S', col, 14);
+    }
+
+    // Whiteboard / presentation wall — slabs on west wall
+    _prop('slab_E', 1, 10);
+    _prop('slab_E', 1, 11);
+
+    // Corner columns for structure
+    _prop('column_N', 2, 10);
+    _prop('column_N', 6, 16);
+
+    // Room sign
+    _decor('arrowWall_S', 4, 17);
   }
 
-  // ── Furniture / props ──────────────────────────────────────────────────────
+  // Deep Work Zone (cols 9–14, rows 9–18)
+  // Individual desk pods: slab desk + lamp + chair each, with a low partition
+  // between the left and right columns of desks.
+  void _buildDeepWork() {
+    const desks = [
+      (10, 10), (13, 10),
+      (10, 13), (13, 13),
+      (10, 16), (13, 16),
+    ];
 
-  Future<void> _buildFurniture() async {
-    // Lounge (top-left) — crate cluster as sofa stand-in
-    _addTile('crate_N', 2, 2, priority: 20);
-    _addTile('crate_E', 3, 2, priority: 20);
-    _addTile('crate_N', 2, 3, priority: 20);
-    _addTile('block_N', 5, 5, priority: 20);
+    for (final (col, row) in desks) {
+      _prop('slab_N', col, row); // desk surface
+      _prop('slabHalf_E', col + 1, row); // desk extension
+      _prop('pole_N', col, row - 1); // standing lamp
+      _chair('blockHalf_W', col, row + 1); // chair
+    }
 
-    // Game Room (top-right) — blocks as gaming desks
-    _addTile('block_N', 10, 2, priority: 20);
-    _addTile('block_N', 12, 2, priority: 20);
-    _addTile('crate_N', 11, 4, priority: 20);
-    _addTile('crate_E', 13, 4, priority: 20);
+    // Partitions between the pods. They only sit on desk rows, so the gaps in
+    // between stay open as walkways (and the divider door at col 12 stays
+    // reachable).
+    for (final row in const [10, 13, 16]) {
+      _prop('fence_E', 12, row);
+    }
 
-    // Meeting Room (bottom-left) — crates around a block "table"
-    _addTile('block_N', 3, 13, priority: 20);
-    _addTile('crate_N', 2, 12, priority: 20);
-    _addTile('crate_E', 4, 12, priority: 20);
-    _addTile('crate_N', 2, 14, priority: 20);
-    _addTile('crate_E', 4, 14, priority: 20);
-
-    // Deep Work (bottom-right) — 4 individual desk blocks
-    _addTile('block_N', 10, 11, priority: 20);
-    _addTile('block_N', 12, 11, priority: 20);
-    _addTile('block_N', 10, 14, priority: 20);
-    _addTile('block_N', 12, 14, priority: 20);
+    // Room sign
+    _decor('arrowWall_W', 9, 17);
   }
 
-  // ── Tile placement helper ──────────────────────────────────────────────────
+  // ── Collision ──────────────────────────────────────────────────────────────
 
-  void _addTile(String spriteName, int col, int row, {int priority = 0}) {
-    final sprite = _sprites[spriteName];
-    if (sprite == null) return;
-
-    final pos = isoToWorld(col, row);
-    add(SpriteComponent(
-      sprite: sprite,
-      position: pos,
-      size: Vector2(kTileW, kTileH),
-      priority: priority + row, // painter's sort: higher row = drawn on top
-    ));
-  }
+  /// True if the grid cell is inside the map and not blocked by a wall or by
+  /// solid furniture. Doorway openings and chairs are walkable.
+  bool isWalkable(int col, int row) =>
+      col >= 0 &&
+      col < kCols &&
+      row >= 0 &&
+      row < kRows &&
+      !_solid.contains(row * kCols + col);
 
   // ── Room detection ─────────────────────────────────────────────────────────
 
-  /// Convert world position back to approximate grid coordinates,
-  /// then check which room zone contains that cell.
   void checkPlayerRoom(Vector2 worldPos) {
-    // Inverse of isoToWorld:
-    //   col = (x / (kTileW/2) + y / (kTileH/8)) / 2
-    //   row = (y / (kTileH/8) - x / (kTileW/2)) / 2
-    final fx = worldPos.x / (kTileW / 2);
-    final fy = worldPos.y / (kTileH / 8);
-    final col = ((fx + fy) / 2).round();
-    final row = ((fy - fx) / 2).round();
-
-    String? newRoomId;
-    for (final entry in _roomZones.entries) {
-      if (entry.value.contains(col, row)) {
-        newRoomId = entry.key;
-        break;
-      }
-    }
+    final (col, row) = worldToGrid(worldPos);
+    final newRoomId = _roomAt(col, row)?.id;
 
     if (newRoomId != _currentRoomId) {
       _currentRoomId = newRoomId;
       onRoomChanged(newRoomId);
     }
   }
-}
-
-// ── Simple grid rectangle helper ──────────────────────────────────────────────
-
-class _Rect {
-  const _Rect(this.c1, this.r1, this.c2, this.r2);
-  final int c1, r1, c2, r2;
-  bool contains(int col, int row) =>
-      col >= c1 && col <= c2 && row >= r1 && row <= r2;
 }
