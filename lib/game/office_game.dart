@@ -9,21 +9,14 @@ import 'components/joystick_controller.dart';
 import '../models/avatar_state.dart';
 import '../services/room_session_manager.dart';
 
-// Fixed logical resolution — Flame scales this to fill the device screen.
-// Landscape-ish ratio works well for isometric maps.
-const kMapWidth  = 800.0;
-const kMapHeight = 600.0;
-
 /// Root Flame game. Mounted inside OfficeScreen via GameWidget.
 class OfficeGame extends FlameGame {
   OfficeGame({
     required this.username,
     this.initialAvatarStates = const [],
   }) : super(
-          camera: CameraComponent.withFixedResolution(
-            width:  kMapWidth,
-            height: kMapHeight,
-          ),
+          // Use the device's real pixel dimensions — no letterboxing.
+          camera: CameraComponent(),
         );
 
   final String username;
@@ -56,7 +49,14 @@ class OfficeGame extends FlameGame {
     await world.add(_player);
 
     // 3. Camera follows player with gentle smoothing so it glides rather than snaps.
-    camera.follow(_player, maxSpeed: 300);
+    //    maxSpeed is in world units/s; scale by zoom so it feels consistent
+    //    regardless of how zoomed in we are.
+    const targetTilesAcross = 5.0;
+    final shortSide = size.x < size.y ? size.x : size.y;
+    final zoom = shortSide / (targetTilesAcross * kTileW);
+    camera.viewfinder.zoom = zoom;
+    // At this zoom, ~3 tiles/s in screen space is a comfortable follow speed.
+    camera.follow(_player, maxSpeed: 3 * kTileW / zoom);
 
     // 4. Joystick in HUD/viewport space
     _joystick = JoystickController();

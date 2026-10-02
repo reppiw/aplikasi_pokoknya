@@ -29,6 +29,9 @@ class GhostComponent extends PositionComponent with HasGameReference<OfficeGame>
   /// World-space position we are interpolating toward (updated by Firebase).
   late Vector2 _targetPosition;
 
+  /// Reusable scratch vector — avoids a heap allocation per update() tick.
+  final Vector2 _scratch = Vector2.zero();
+
   /// Fraction of the gap closed per second for remote-player smoothing.
   /// Higher = snappier, lower = laggier. 8 feels responsive without teleporting.
   static const _lerpSpeed = 8.0;
@@ -87,8 +90,12 @@ class GhostComponent extends PositionComponent with HasGameReference<OfficeGame>
   void update(double dt) {
     super.update(dt);
 
-    // Smoothly chase the latest Firebase position.
-    position += (_targetPosition - position) * (_lerpSpeed * dt).clamp(0.0, 1.0);
+    // Smoothly chase the latest Firebase position — allocation-free lerp.
+    _scratch
+      ..setFrom(_targetPosition)
+      ..sub(position)
+      ..scale((_lerpSpeed * dt).clamp(0.0, 1.0));
+    position.add(_scratch);
 
     if (!_state.isOnline) {
       _floatTimer += dt * 1.8;

@@ -105,7 +105,14 @@ class _FriendsScreenState extends State<FriendsScreen> {
               ),
             )
                 : ListView.separated(
-              padding: const EdgeInsets.all(16),
+              // Extra bottom padding so the last item clears the
+              // floating nav bar (nav bar ~72px + system nav inset).
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                16 + MediaQuery.of(context).padding.bottom + 80,
+              ),
               itemCount: _filteredFriends.length,
               separatorBuilder: (context, index) =>
               const SizedBox(height: 12),

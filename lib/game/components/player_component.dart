@@ -21,6 +21,10 @@ class PlayerComponent extends PositionComponent with HasGameReference {
   final String username;
   JoystickController? joystick;
 
+  /// Cached reference to the map — set once in [onLoad], avoids a
+  /// [whereType] scan every frame.
+  OfficeMap? _map;
+
   /// Top speed in world units per second.
   static const _speed = 200.0;
 
@@ -41,6 +45,9 @@ class PlayerComponent extends PositionComponent with HasGameReference {
 
   /// Current velocity in world space (pixels per second).
   final Vector2 _velocity = Vector2.zero();
+
+  /// Reusable scratch vector — avoids a heap allocation in [update].
+  final Vector2 _scratch = Vector2.zero();
 
   @override
   Future<void> onLoad() async {
@@ -87,6 +94,10 @@ class PlayerComponent extends PositionComponent with HasGameReference {
       ),
     );
     add(_label);
+
+    // Cache the map reference once so update() doesn't scan world.children
+    // every frame.
+    _map = game.world.children.whereType<OfficeMap>().firstOrNull;
   }
 
   @override
@@ -149,16 +160,22 @@ class PlayerComponent extends PositionComponent with HasGameReference {
       }
       // For pure row-axis moves (snapJx == 0) keep whatever facing we had.
     } else {
-      // No input — bleed off velocity with friction.
-      _velocity.x = _moveToward(_velocity.x, 0, _friction * dt);
-      _velocity.y = _moveToward(_velocity.y, 0, _friction * dt);
+      // No input — bleed off velocity with friction, but skip entirely if
+      // already stopped to avoid unnecessary math every idle frame.
+      if (_velocity.x != 0.0 || _velocity.y != 0.0) {
+        _velocity.x = _moveToward(_velocity.x, 0, _friction * dt);
+        _velocity.y = _moveToward(_velocity.y, 0, _friction * dt);
+      }
     }
 
     final bool moving = _velocity.length2 > 1.0;
     _setWalking(moving);
 
     if (moving) {
-      position += _velocity * dt;
+      // Reuse _scratch to avoid a Vector2 allocation per frame.
+      _scratch.setFrom(_velocity);
+      _scratch.scale(dt);
+      position.add(_scratch);
 
       // Keep player within world bounds.
       position.x = position.x.clamp(
@@ -167,9 +184,8 @@ class PlayerComponent extends PositionComponent with HasGameReference {
       );
       position.y = position.y.clamp(0, kRows * kTileH / 4);
 
-      // Notify map to check room.
-      final map = game.world.children.whereType<OfficeMap>().firstOrNull;
-      map?.checkPlayerRoom(position);
+      // Notify map — use cached reference, no scan needed.
+      _map?.checkPlayerRoom(position);
     }
   }
 

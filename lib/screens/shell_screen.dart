@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'group/group_list_screen.dart';
 import 'home/home_screen.dart';
-import 'office/office_screen.dart';
 import 'profile/profile_screen.dart';
 import 'friends/friends_screen.dart';
 import '../core/theme/app_theme.dart';
@@ -26,7 +25,6 @@ class _ShellScreenState extends State<ShellScreen> {
       const HomeScreen(),
       const FriendsScreen(),
       const GroupListScreen(),
-      const OfficeScreen(),
       ProfileScreen(onSignOut: widget.onSignOut),
     ];
 
@@ -53,11 +51,10 @@ class _NeoNavBar extends StatelessWidget {
   final ValueChanged<int> onTap;
 
   static const _items = [
-    (icon: Icons.home_outlined, label: 'HOME'),
-    (icon: Icons.people_outline, label: 'FRIENDS'),
-    (icon: Icons.group_work_outlined, label: 'GROUPS'),
-    (icon: Icons.location_city_outlined, label: 'OFFICE'),
-    (icon: Icons.person_outline, label: 'PROFILE'),
+    (icon: Icons.home_outlined,        label: 'HOME'),
+    (icon: Icons.people_outline,       label: 'FRIENDS'),
+    (icon: Icons.group_work_outlined,  label: 'GROUPS'),
+    (icon: Icons.person_outline,       label: 'PROFILE'),
   ];
 
   @override

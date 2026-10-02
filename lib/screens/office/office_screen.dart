@@ -13,7 +13,11 @@ import '../../models/avatar_state.dart';
 ///   2. Room banner overlay ← shows current room, slides in from top
 ///   3. Exit button         ← top-right, returns to shell
 class OfficeScreen extends StatefulWidget {
-  const OfficeScreen({super.key});
+  const OfficeScreen({super.key, this.groupName});
+
+  /// The name of the group whose office is being opened.
+  /// Shown in the top bar. Falls back to 'OFFICE' if null.
+  final String? groupName;
 
   @override
   State<OfficeScreen> createState() => _OfficeScreenState();
@@ -53,7 +57,7 @@ class _OfficeScreenState extends State<OfficeScreen> {
             top: 0,
             left: 0,
             right: 0,
-            child: _TopBar(game: _game),
+            child: _TopBar(game: _game, groupName: widget.groupName),
           ),
 
           // ── 3. Room banner (slides in below the top bar when entering a room) ──
@@ -97,9 +101,10 @@ class _OfficeScreenState extends State<OfficeScreen> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.game});
+  const _TopBar({required this.game, this.groupName});
 
   final OfficeGame game;
+  final String? groupName;
 
   @override
   Widget build(BuildContext context) {
@@ -120,7 +125,10 @@ class _TopBar extends StatelessWidget {
               color: NeoColors.accent,
               border: NeoBorder.thin,
             ),
-            child: Text('OFFICE', style: NeoTextStyles.label),
+            child: Text(
+              groupName?.toUpperCase() ?? 'OFFICE',
+              style: NeoTextStyles.label,
+            ),
           ),
           const Spacer(),
           GestureDetector(

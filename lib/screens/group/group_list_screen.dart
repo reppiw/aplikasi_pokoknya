@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../widgets/active_room_banner.dart';
-import '../../screens/room_editor/room_detail_screen.dart';
-import '../../screens/room_editor/room_history_screen.dart';
-import '../../models/room.dart';
+import '../../screens/office/office_screen.dart';
 
 class _GroupItem {
   const _GroupItem({
@@ -317,18 +315,6 @@ class _GroupsHeaderState extends State<_GroupsHeader> {
               Text('Groups', style: NeoTextStyles.h2),
 
               const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.history_rounded, color: NeoColors.ink, size: 26),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const RoomHistoryScreen(),
-                    ),
-                  );
-                },
-              ),
-
             ],
           ),
           const SizedBox(height: 16),
@@ -425,14 +411,7 @@ class _GroupListTileState extends State<_GroupListTile> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => RoomDetailScreen(
-              room: Room(
-                id: widget.group.name.toLowerCase().replaceAll(' ', '_'),
-                name: '${widget.group.name} Main Room',
-                statusTag: RoomStatusTag.free,
-              ),
-              groupName: widget.group.name,
-            ),
+            builder: (context) => OfficeScreen(groupName: widget.group.name),
           ),
         );
       },

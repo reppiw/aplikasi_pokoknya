@@ -15,7 +15,7 @@ final List<Friend> dummyFriends = [
     name: 'Sarah Chen',
     username: 'sarah_ui',
     status: FriendStatus.online,
-    customStatus: 'Slicing UI Neobrutalism 🎨',
+    customStatus: 'Jangan lupa absensi PemMob 🎨',
     activeRoomName: null,
     activeGroupName: null,
   ),
