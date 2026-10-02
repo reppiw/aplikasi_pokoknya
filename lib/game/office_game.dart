@@ -1,11 +1,11 @@
 import 'package:flame/game.dart';
 import 'package:flame/components.dart';
-import 'package:flame/input.dart';
 import 'package:flutter/material.dart';
 
 import 'components/office_map.dart';
 import 'components/player_component.dart';
 import 'components/ghost_component.dart';
+import 'components/joystick_controller.dart';
 import '../models/avatar_state.dart';
 import '../services/room_session_manager.dart';
 
@@ -15,7 +15,7 @@ const kMapWidth  = 800.0;
 const kMapHeight = 600.0;
 
 /// Root Flame game. Mounted inside OfficeScreen via GameWidget.
-class OfficeGame extends FlameGame with HasKeyboardHandlerComponents {
+class OfficeGame extends FlameGame {
   OfficeGame({
     required this.username,
     this.initialAvatarStates = const [],
@@ -33,6 +33,7 @@ class OfficeGame extends FlameGame with HasKeyboardHandlerComponents {
   final ValueNotifier<String?> activeRoomNotifier = ValueNotifier(null);
 
   late final PlayerComponent _player;
+  late final JoystickController _joystick;
   final Map<String, GhostComponent> _ghosts = {};
 
   @override
@@ -57,7 +58,12 @@ class OfficeGame extends FlameGame with HasKeyboardHandlerComponents {
     // 3. Camera follows player
     camera.follow(_player);
 
-    // 4. Initial ghost avatars
+    // 4. Joystick in HUD/viewport space
+    _joystick = JoystickController();
+    await camera.viewport.add(_joystick);
+    _player.joystick = _joystick;
+
+    // 5. Initial ghost avatars
     for (final state in initialAvatarStates) {
       await _spawnGhost(state);
     }

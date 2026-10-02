@@ -43,12 +43,9 @@ class _OfficeScreenState extends State<OfficeScreen> {
       backgroundColor: NeoColors.ink,
       body: Stack(
         children: [
-          // ── 1. Flame game (autofocus so WASD works immediately) ──────────
+          // ── 1. Flame game ─────────────────────────────────────────────────
           Positioned.fill(
-            child: GameWidget<OfficeGame>(
-              game: _game,
-              autofocus: true,
-            ),
+            child: GameWidget<OfficeGame>(game: _game),
           ),
 
           // ── 2. Top bar ────────────────────────────────────────────────────
@@ -125,8 +122,6 @@ class _TopBar extends StatelessWidget {
             ),
             child: Text('OFFICE', style: NeoTextStyles.label),
           ),
-          const SizedBox(width: 10),
-          Text('WASD to move', style: NeoTextStyles.label.copyWith(fontSize: 9)),
           const Spacer(),
           GestureDetector(
             onTap: () => Navigator.of(context).maybePop(),
