@@ -21,8 +21,16 @@ class PlayerComponent extends PositionComponent with HasGameReference {
   final String username;
   JoystickController? joystick;
 
-  static const _speed    = 80.0;  // world units per second
-  static const _fps      = 12.0;  // animation frames per second
+  /// Top speed in world units per second.
+  static const _speed = 200.0;
+
+  /// How quickly velocity ramps up to full speed (units/s²).
+  static const _acceleration = 1200.0;
+
+  /// How quickly velocity bleeds off when input is released (units/s²).
+  static const _friction = 1000.0;
+
+  static const _fps = 12.0; // animation frames per second
 
   late final SpriteAnimationComponent _sprite;
   late final SpriteAnimation _idleAnim;
@@ -30,6 +38,9 @@ class PlayerComponent extends PositionComponent with HasGameReference {
   late final TextComponent   _label;
 
   bool _isWalking = false;
+
+  /// Current velocity in world space (pixels per second).
+  final Vector2 _velocity = Vector2.zero();
 
   @override
   Future<void> onLoad() async {
@@ -83,43 +94,91 @@ class PlayerComponent extends PositionComponent with HasGameReference {
     super.update(dt);
 
     final j = joystick;
-    if (j == null || j.direction == JoystickDirection.idle) {
-      _setWalking(false);
-      return;
+    final bool hasInput =
+        j != null && j.direction != JoystickDirection.idle;
+
+    if (hasInput) {
+      final jx = j!.relativeDelta.x;
+      final jy = j.relativeDelta.y;
+
+      // ── Quantize to the 4 isometric axes ──────────────────────────────────
+      //
+      // isoToWorld basis (from office_map.dart):
+      //   +col (NE): world ( +kTileW/2,  +kTileH/8 )  — screen right-down
+      //   +row (SE): world ( -kTileW/2,  +kTileH/8 )  — screen left-down
+      //
+      // Joystick screen axes: jx = right (+1), jy = down (+1).
+      //
+      // To find which iso axis the stick is pointing along, project onto
+      // each iso basis direction (normalised):
+      //
+      //   col unit in screen = ( +1,  +0.5 ) / |…| → dot = jx + 0.5*jy
+      //   row unit in screen = ( -1,  +0.5 ) / |…| → dot = -jx + 0.5*jy
+      //
+      // The dominant projection wins; its sign picks the direction.
+      final dotCol =  jx + 0.5 * jy; // positive = NE, negative = SW
+      final dotRow = -jx + 0.5 * jy; // positive = SE, negative = NW
+
+      double snapJx, snapJy;
+      if (dotCol.abs() >= dotRow.abs()) {
+        // Move along col axis (NE / SW)
+        snapJx = dotCol.sign;
+        snapJy = 0.0;
+      } else {
+        // Move along row axis (SE / NW)
+        snapJx = 0.0;
+        snapJy = dotRow.sign;
+      }
+
+      // Convert snapped iso-axis direction back to world-space velocity.
+      // Isometric world basis (2:1 ratio, matching isoToWorld in office_map):
+      //   col step: (+kTileW/2, +kTileH/8)
+      //   row step: (-kTileW/2, +kTileH/8)
+      final targetVx = (snapJx - snapJy) * _speed;
+      final targetVy = (snapJx + snapJy) * _speed * (kTileH / 8) / (kTileW / 2);
+
+      // Accelerate toward the target velocity each frame.
+      _velocity.x = _moveToward(_velocity.x, targetVx, _acceleration * dt);
+      _velocity.y = _moveToward(_velocity.y, targetVy, _acceleration * dt);
+
+      // Flip sprite based on snapped horizontal intent.
+      if (snapJx < 0) {
+        _sprite.scale.x = -1; // facing left  (SW or NW)
+      } else if (snapJx > 0) {
+        _sprite.scale.x =  1; // facing right (NE or SE)
+      }
+      // For pure row-axis moves (snapJx == 0) keep whatever facing we had.
+    } else {
+      // No input — bleed off velocity with friction.
+      _velocity.x = _moveToward(_velocity.x, 0, _friction * dt);
+      _velocity.y = _moveToward(_velocity.y, 0, _friction * dt);
     }
 
-    _setWalking(true);
+    final bool moving = _velocity.length2 > 1.0;
+    _setWalking(moving);
 
-    // Move in isometric space: joystick X maps to iso-right (↗), Y to iso-down (↘)
-    // We combine screen-space joystick input into world movement along iso axes.
-    final jx = j.relativeDelta.x;
-    final jy = j.relativeDelta.y;
+    if (moving) {
+      position += _velocity * dt;
 
-    // Isometric basis vectors (normalised):
-    //   iso-right  = (+1,  +0.5) in screen space  (moving along col axis)
-    //   iso-down   = (-1,  +0.5) in screen space  (moving along row axis)
-    final dx = (jx - jy) * (kTileW / 2) * _speed * dt / 100;
-    final dy = (jx + jy) * (kTileH / 8) * _speed * dt / 100;
+      // Keep player within world bounds.
+      position.x = position.x.clamp(
+        -(kCols * kTileW / 2),
+        kCols * kTileW / 2,
+      );
+      position.y = position.y.clamp(0, kRows * kTileH / 4);
 
-    position += Vector2(dx, dy);
-
-    // Keep player within world bounds (rough clamp)
-    position.x = position.x.clamp(
-      -(kCols * kTileW / 2),
-      kCols * kTileW / 2,
-    );
-    position.y = position.y.clamp(0, kRows * kTileH / 4);
-
-    // Flip sprite horizontally based on horizontal movement direction
-    if (jx < -0.1) {
-      _sprite.scale.x = -1; // facing left
-    } else if (jx > 0.1) {
-      _sprite.scale.x = 1;  // facing right
+      // Notify map to check room.
+      final map = game.world.children.whereType<OfficeMap>().firstOrNull;
+      map?.checkPlayerRoom(position);
     }
+  }
 
-    // Notify map to check room
-    final map = game.world.children.whereType<OfficeMap>().firstOrNull;
-    map?.checkPlayerRoom(position);
+  /// Moves [current] toward [target] by at most [maxDelta], without
+  /// overshooting.
+  static double _moveToward(double current, double target, double maxDelta) {
+    final diff = target - current;
+    if (diff.abs() <= maxDelta) return target;
+    return current + diff.sign * maxDelta;
   }
 
   void _setWalking(bool walking) {

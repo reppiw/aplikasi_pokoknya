@@ -26,9 +26,17 @@ class GhostComponent extends PositionComponent with HasGameReference<OfficeGame>
 
   double _floatTimer = 0;
 
+  /// World-space position we are interpolating toward (updated by Firebase).
+  late Vector2 _targetPosition;
+
+  /// Fraction of the gap closed per second for remote-player smoothing.
+  /// Higher = snappier, lower = laggier. 8 feels responsive without teleporting.
+  static const _lerpSpeed = 8.0;
+
   @override
   Future<void> onLoad() async {
     position = Vector2(_state.x, _state.y);
+    _targetPosition = position.clone();
 
     final variant = _variantFor(_state.userId);
 
@@ -70,13 +78,18 @@ class GhostComponent extends PositionComponent with HasGameReference<OfficeGame>
   /// Called by OfficeGame when a fresh AvatarState arrives for this user.
   void updateState(AvatarState newState) {
     _state = newState;
-    position = Vector2(newState.x, newState.y);
+    // Store the target; update() will interpolate smoothly toward it.
+    _targetPosition = Vector2(newState.x, newState.y);
     _sprite.opacity = newState.isOnline ? 0.85 : 0.35;
   }
 
   @override
   void update(double dt) {
     super.update(dt);
+
+    // Smoothly chase the latest Firebase position.
+    position += (_targetPosition - position) * (_lerpSpeed * dt).clamp(0.0, 1.0);
+
     if (!_state.isOnline) {
       _floatTimer += dt * 1.8;
       _sprite.position = Vector2(0, -4 + 4 * math.sin(_floatTimer));

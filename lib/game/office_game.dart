@@ -55,8 +55,8 @@ class OfficeGame extends FlameGame {
     );
     await world.add(_player);
 
-    // 3. Camera follows player
-    camera.follow(_player);
+    // 3. Camera follows player with gentle smoothing so it glides rather than snaps.
+    camera.follow(_player, maxSpeed: 300);
 
     // 4. Joystick in HUD/viewport space
     _joystick = JoystickController();
