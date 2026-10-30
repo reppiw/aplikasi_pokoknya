@@ -17,7 +17,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _bioController;
   late TextEditingController _emailController;
   bool _notificationsEnabled = true;
-
   bool _isLoading = false;
 
   @override
@@ -38,18 +37,29 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
-  // Fungsi simpan profil
+  // Fungsi simpan profil (mengupdate nama dan email/id)
   Future<void> _handleSave() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
 
-      // Simulasi delay proses simpan data (async)
-      await Future.delayed(const Duration(milliseconds: 800));
+      await Future.delayed(const Duration(milliseconds: 600));
 
       if (!mounted) return;
       setState(() => _isLoading = false);
 
-      // Notifikasi sukses
+      // Ambil input email, lalu ekstrak bagian depannya untuk dijadikan ID baru
+      final emailInput = _emailController.text.trim();
+      final extractedId = emailInput.contains('@')
+          ? emailInput.split('@').first
+          : widget.user.id;
+
+      // Buat objek AppUser baru dengan data terbaru
+      final updatedUser = AppUser(
+        id: extractedId,
+        displayName: _nameController.text.trim(),
+        avatarUrl: widget.user.avatarUrl,
+      );
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -60,11 +70,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ),
       );
 
-      Navigator.pop(context);
+      // Kembalikan data user terbaru ke ProfileScreen
+      Navigator.pop(context, updatedUser);
     }
   }
 
-  // Dialog konfirmasi batal edit
   void _confirmCancel() {
     showDialog(
       context: context,
@@ -124,7 +134,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Field Display Name
               _buildLabel('DISPLAY NAME'),
               TextFormField(
                 controller: _nameController,
@@ -139,7 +148,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Field Email Address
               _buildLabel('EMAIL ADDRESS'),
               TextFormField(
                 controller: _emailController,
@@ -155,7 +163,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Field Bio / Description
               _buildLabel('BIO / DESCRIPTION'),
               TextFormField(
                 controller: _bioController,
@@ -171,7 +178,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Switch Notification Toggle
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -194,7 +200,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
               const SizedBox(height: 30),
 
-              // Tombol Action (Cancel & Save)
               Row(
                 children: [
                   Expanded(
@@ -241,7 +246,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  // Helper Widget untuk Label Form
   Widget _buildLabel(String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -252,7 +256,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  // Helper Decoration gaya Neo-Brutalism
   InputDecoration _neoInputDecoration(String hint) {
     return InputDecoration(
       hintText: hint,

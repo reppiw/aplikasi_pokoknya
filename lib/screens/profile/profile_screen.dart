@@ -37,13 +37,36 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // State Pengaturan Profil
+  AppUser? _currentUser;
+
+  AppUser get currentUser => _currentUser ?? widget.user;
+
   bool _pushNotifications = true;
   bool _emailNotifications = false;
   bool _privateAccount = false;
   bool _allowDirectMessages = true;
 
-  // Dialog Konfirmasi Sign Out
+  @override
+  void initState() {
+    super.initState();
+    _currentUser = widget.user;
+  }
+
+  Future<void> _openEditProfile() async {
+    final updatedUser = await Navigator.push<AppUser>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditProfileScreen(user: currentUser),
+      ),
+    );
+
+    if (updatedUser != null) {
+      setState(() {
+        _currentUser = updatedUser;
+      });
+    }
+  }
+
   Future<void> _confirmSignOut(BuildContext context) async {
     final shouldSignOut = await showDialog<bool>(
       context: context,
@@ -79,7 +102,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (shouldSignOut == true) widget.onSignOut();
   }
 
-  // ── Dialog Notifications ──────────────────────────────────────────────────
   void _showNotificationsDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -131,7 +153,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── Dialog Privacy & Safety ───────────────────────────────────────────────
   void _showPrivacyDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -185,7 +206,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── Dialog Help & Support ────────────────────────────────────────────────
   void _showHelpDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -257,10 +277,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                 sliver:
-                SliverToBoxAdapter(child: _ProfileCard(user: widget.user)),
+                SliverToBoxAdapter(child: _ProfileCard(user: currentUser)),
               ),
-
-              // ── Menu: Account ─────────────────────────────────────────
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
                 sliver: SliverToBoxAdapter(
@@ -271,15 +289,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Icons.edit_outlined,
                         'Edit Profile',
                         NeoColors.secondary,
-                            () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  EditProfileScreen(user: widget.user),
-                            ),
-                          );
-                        },
+                        _openEditProfile,
                       ),
                       _MenuItem(
                         Icons.notifications_outlined,
@@ -297,8 +307,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
-
-              // ── Menu: Support ─────────────────────────────────────────
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                 sliver: SliverToBoxAdapter(
@@ -315,15 +323,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
-
-              // ── Sign out ──────────────────────────────────────────────
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                 sliver: SliverToBoxAdapter(
                   child: _SignOutButton(onTap: () => _confirmSignOut(context)),
                 ),
               ),
-
               const SliverToBoxAdapter(child: SizedBox(height: 120)),
             ],
           ),
@@ -332,10 +337,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Page heading
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _PageHeading extends StatelessWidget {
   @override
@@ -370,10 +371,6 @@ class _PageHeading extends StatelessWidget {
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Profile card
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _ProfileCard extends StatelessWidget {
   const _ProfileCard({required this.user});
@@ -522,10 +519,6 @@ class _ProfileCard extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Menu section
-// ─────────────────────────────────────────────────────────────────────────────
-
 class _MenuItem {
   _MenuItem(this.icon, this.label, this.accentColor, this.onTap);
   final IconData icon;
@@ -638,10 +631,6 @@ class _MenuRowState extends State<_MenuRow> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Sign out button
-// ─────────────────────────────────────────────────────────────────────────────
-
 class _SignOutButton extends StatefulWidget {
   const _SignOutButton({required this.onTap});
   final VoidCallback onTap;
@@ -686,10 +675,6 @@ class _SignOutButtonState extends State<_SignOutButton> {
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Grid texture painter
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _GridPainter extends CustomPainter {
   @override
