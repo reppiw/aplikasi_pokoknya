@@ -2,6 +2,26 @@
 
 A new Flutter project.
 
+## Firebase setup
+
+The Android app initializes Firebase from `lib/firebase_options.dart`. Enable
+Email/Password under Firebase Authentication and create a Cloud Firestore
+database for the configured Firebase project. Users continue to sign in with
+their username; the app maps each username to a Firebase email/password
+account internally.
+
+Deploy the included Firestore rules from the repository root with the Firebase
+CLI:
+
+```sh
+firebase deploy --only firestore:rules
+```
+
+The app stores user profiles in `users/{uid}`, username reservations in
+`usernames/{username}`, and office presence in
+`groups/{groupId}/avatars/{uid}`. The current office screen uses the `default`
+group.
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.

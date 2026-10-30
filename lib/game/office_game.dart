@@ -11,13 +11,11 @@ import '../services/room_session_manager.dart';
 
 /// Root Flame game. Mounted inside OfficeScreen via GameWidget.
 class OfficeGame extends FlameGame {
-  OfficeGame({
-    required this.username,
-    this.initialAvatarStates = const [],
-  }) : super(
-          // Use the device's real pixel dimensions — no letterboxing.
-          camera: CameraComponent(),
-        );
+  OfficeGame({required this.username, this.initialAvatarStates = const []})
+    : super(
+        // Use the device's real pixel dimensions — no letterboxing.
+        camera: CameraComponent(),
+      );
 
   final String username;
   final List<AvatarState> initialAvatarStates;
@@ -28,6 +26,8 @@ class OfficeGame extends FlameGame {
   late final PlayerComponent _player;
   late final JoystickController _joystick;
   final Map<String, GhostComponent> _ghosts = {};
+  List<AvatarState>? _pendingAvatarStates;
+  bool _isReady = false;
 
   @override
   Color backgroundColor() => const Color(0xFF1A1A2E);
@@ -67,12 +67,22 @@ class OfficeGame extends FlameGame {
     for (final state in initialAvatarStates) {
       await _spawnGhost(state);
     }
+    _isReady = true;
+    final pendingStates = _pendingAvatarStates;
+    _pendingAvatarStates = null;
+    if (pendingStates != null) {
+      await updateGhosts(pendingStates);
+    }
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
   /// Called by OfficeScreen when Firebase sends updated avatar states.
   Future<void> updateGhosts(List<AvatarState> states) async {
+    if (!_isReady) {
+      _pendingAvatarStates = states;
+      return;
+    }
     for (final state in states) {
       if (state.userId == username) continue;
       final existing = _ghosts[state.userId];
@@ -83,7 +93,8 @@ class OfficeGame extends FlameGame {
       }
     }
     final activeIds = states.map((s) => s.userId).toSet();
-    for (final id in _ghosts.keys.where((id) => !activeIds.contains(id)).toList()) {
+    for (final id
+        in _ghosts.keys.where((id) => !activeIds.contains(id)).toList()) {
       _ghosts[id]?.removeFromParent();
       _ghosts.remove(id);
     }
@@ -112,10 +123,12 @@ class OfficeGame extends FlameGame {
     }
   }
 
-  String _roomDisplayName(String roomId) => const {
-        'deep_work':         'Deep Work Zone',
+  String _roomDisplayName(String roomId) =>
+      const {
+        'deep_work': 'Deep Work Zone',
         'looking_for_games': 'Game Room',
-        'busy':              'Meeting Room',
-        'free':              'Lounge',
-      }[roomId] ?? roomId;
+        'busy': 'Meeting Room',
+        'free': 'Lounge',
+      }[roomId] ??
+      roomId;
 }

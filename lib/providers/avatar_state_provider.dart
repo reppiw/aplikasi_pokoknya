@@ -1,4 +1,15 @@
-// TODO: expose a StreamProvider<List<AvatarState>> that listens to Firestore
-// for the active group. This drives ghost spawning and live position updates
-// sent across the Unity bridge.
-// import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../models/avatar_state.dart';
+import '../services/database_service.dart';
+
+final databaseServiceProvider = Provider<DatabaseService>(
+  (ref) => DatabaseService(),
+);
+
+final avatarStatesProvider = StreamProvider.family<List<AvatarState>, String>((
+  ref,
+  groupId,
+) {
+  return ref.watch(databaseServiceProvider).watchGroupAvatarStates(groupId);
+});

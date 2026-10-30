@@ -31,7 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
     try {
-      AuthService.instance.signIn(
+      await AuthService.instance.signIn(
         username: _usernameController.text,
         password: _passwordController.text,
       );
@@ -40,31 +40,6 @@ class _LoginScreenState extends State<LoginScreen> {
       _showMessage(error.message);
     } finally {
       if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  /// Registers a test account if it doesn't exist yet, then signs in.
-  void _quickLogin() {
-    const testUsername = 'testuser';
-    const testPassword = 'test1234';
-    try {
-      AuthService.instance.register(
-        name: 'Test User',
-        username: testUsername,
-        password: testPassword,
-        age: 20,
-      );
-    } on AuthException {
-      // Account already exists — that's fine, just sign in below.
-    }
-    try {
-      AuthService.instance.signIn(
-        username: testUsername,
-        password: testPassword,
-      );
-      widget.onAuthenticated();
-    } on AuthException catch (e) {
-      _showMessage(e.message);
     }
   }
 
@@ -172,21 +147,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                 : const Text('MASUK'),
                           ),
                           const SizedBox(height: 8),
-                          // ── DEV ONLY ───────────────────────────────────────
-                          TextButton.icon(
-                            onPressed: _quickLogin,
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.grey[600],
-                              textStyle: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                            icon: const Icon(Icons.bolt, size: 15),
-                            label: const Text('QUICK LOGIN (testuser)'),
-                          ),
-                          const SizedBox(height: 12),
                           OutlinedButton.icon(
                             onPressed: () => _showMessage(
                               'Google Sign-In belum diaktifkan.',

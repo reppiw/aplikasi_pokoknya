@@ -40,8 +40,6 @@ flutter:
 
   assets:
     - assets/Homepage_Background.jpg
-    - assets/office/
-    - assets/sprites/
     - assets/Isometric/
     - assets/Angle/
     - assets/Characters/Human/

@@ -21,6 +21,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _showAgeError = false;
   bool _isPhotoStep = false;
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -42,19 +43,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
   }
 
-  void _finishRegistration() {
+  Future<void> _finishRegistration() async {
+    setState(() => _isLoading = true);
     try {
-      AuthService.instance.register(
+      final profileWarning = await AuthService.instance.register(
         name: _nameController.text,
         username: _usernameController.text,
         password: _passwordController.text,
         age: _age,
       );
+      if (!mounted) return;
+      if (profileWarning != null) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(profileWarning)));
+      }
       widget.onRegistered();
       Navigator.of(context).pop();
     } on AuthException catch (error) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -260,8 +270,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         const SizedBox(height: 12),
         ElevatedButton(
-          onPressed: _finishRegistration,
-          child: const Text('LEWATI'),
+          onPressed: _isLoading ? null : _finishRegistration,
+          child: _isLoading
+              ? const SizedBox.square(
+                  dimension: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('LEWATI'),
         ),
       ],
     );
