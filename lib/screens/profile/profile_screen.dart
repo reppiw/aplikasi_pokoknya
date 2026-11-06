@@ -4,6 +4,8 @@ import '../../core/theme/app_theme.dart';
 import '../../models/user.dart';
 import '../../services/auth_service.dart';
 import 'edit_profile_screen.dart';
+import '../../widgets/grid_background.dart';
+import '../../widgets/neo_pressable.dart';
 
 const _kCurrentUser = AppUser(
   id: 'demo-user-1',
@@ -270,7 +272,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Positioned.fill(
           child: ColoredBox(color: NeoColors.cream.withValues(alpha: 0.88)),
         ),
-        Positioned.fill(child: CustomPaint(painter: _GridPainter())),
+        Positioned.fill(child: const GridBackground(alpha: 0.05)),
         SafeArea(
           child: CustomScrollView(
             slivers: [
@@ -575,27 +577,17 @@ class _MenuSection extends StatelessWidget {
   }
 }
 
-class _MenuRow extends StatefulWidget {
+class _MenuRow extends StatelessWidget {
   const _MenuRow({required this.item});
   final _MenuItem item;
 
   @override
-  State<_MenuRow> createState() => _MenuRowState();
-}
-
-class _MenuRowState extends State<_MenuRow> {
-  bool _pressed = false;
-
-  @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      onTap: widget.item.onTap,
-      child: AnimatedContainer(
+    return NeoPressable(
+      onTap: item.onTap,
+      child: (pressed) => AnimatedContainer(
         duration: const Duration(milliseconds: 100),
-        color: _pressed ? NeoColors.secondary : NeoColors.cream,
+        color: pressed ? NeoColors.secondary : NeoColors.cream,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: Row(
           children: [
@@ -603,15 +595,15 @@ class _MenuRowState extends State<_MenuRow> {
               width: 38,
               height: 38,
               decoration: BoxDecoration(
-                color: widget.item.accentColor,
+                color: item.accentColor,
                 border: NeoBorder.thin,
               ),
-              child: Icon(widget.item.icon, size: 18, color: NeoColors.ink),
+              child: Icon(item.icon, size: 18, color: NeoColors.ink),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Text(
-                widget.item.label.toUpperCase(),
+                item.label.toUpperCase(),
                 style: NeoTextStyles.body.copyWith(fontSize: 13),
               ),
             ),
@@ -632,34 +624,24 @@ class _MenuRowState extends State<_MenuRow> {
   }
 }
 
-class _SignOutButton extends StatefulWidget {
+class _SignOutButton extends StatelessWidget {
   const _SignOutButton({required this.onTap});
   final VoidCallback onTap;
 
   @override
-  State<_SignOutButton> createState() => _SignOutButtonState();
-}
-
-class _SignOutButtonState extends State<_SignOutButton> {
-  bool _pressed = false;
-
-  @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      onTap: widget.onTap,
-      child: AnimatedContainer(
+    return NeoPressable(
+      onTap: onTap,
+      child: (pressed) => AnimatedContainer(
         duration: const Duration(milliseconds: 100),
-        transform: _pressed
+        transform: pressed
             ? Matrix4.translationValues(4.0, 4.0, 0)
             : Matrix4.identity(),
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
           color: NeoColors.accent,
           border: NeoBorder.thick,
-          boxShadow: _pressed ? [] : NeoShadows.m,
+          boxShadow: pressed ? [] : NeoShadows.m,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -675,23 +657,4 @@ class _SignOutButtonState extends State<_SignOutButton> {
       ),
     );
   }
-}
-
-class _GridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = NeoColors.ink.withValues(alpha: 0.05)
-      ..strokeWidth = 1;
-    const step = 40.0;
-    for (double x = 0; x <= size.width; x += step) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y <= size.height; y += step) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_GridPainter old) => false;
 }

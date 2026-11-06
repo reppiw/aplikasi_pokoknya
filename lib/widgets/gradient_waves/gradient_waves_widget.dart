@@ -63,6 +63,11 @@ enum WaveDetail { low, medium, high }
 class _GradientWavesState extends State<GradientWaves>
     with SingleTickerProviderStateMixin {
   late final Ticker _ticker;
+
+  /// Triggers a repaint of [CustomPaint] without rebuilding the
+  /// surrounding widget tree ([MouseRegion], [Listener], [LayoutBuilder]).
+  final ValueNotifier<int> _frame = ValueNotifier(0);
+
   double _time = 0;
 
   double _mouseX = 0.5, _mouseY = 0.5;
@@ -75,13 +80,14 @@ class _GradientWavesState extends State<GradientWaves>
       _time = elapsed.inMicroseconds / 1e6;
       _mouseX += 0.05 * (_targetX - _mouseX);
       _mouseY += 0.05 * (_targetY - _mouseY);
-      if (mounted) setState(() {});
+      _frame.value++;
     })..start();
   }
 
   @override
   void dispose() {
     _ticker.dispose();
+    _frame.dispose();
     super.dispose();
   }
 
@@ -110,14 +116,17 @@ class _GradientWavesState extends State<GradientWaves>
             _targetX = (e.localPosition.dx / size.width).clamp(0.0, 1.0);
             _targetY = (e.localPosition.dy / size.height).clamp(0.0, 1.0);
           },
-          child: CustomPaint(
-            size: size,
-            painter: _WavesPainter(
-              time:         _time,
-              mouseX:       _mouseX,
-              mouseY:       _mouseY,
-              widget:       widget,
-              layerCount:   _layerCount,
+          child: ListenableBuilder(
+            listenable: _frame,
+            builder: (context, _) => CustomPaint(
+              size: size,
+              painter: _WavesPainter(
+                time:         _time,
+                mouseX:       _mouseX,
+                mouseY:       _mouseY,
+                widget:       widget,
+                layerCount:   _layerCount,
+              ),
             ),
           ),
         ),

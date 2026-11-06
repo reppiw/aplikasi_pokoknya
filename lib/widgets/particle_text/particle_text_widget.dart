@@ -93,6 +93,11 @@ class _ParticleTextState extends State<ParticleText>
   late final Ticker _ticker;
   Duration _elapsed = Duration.zero;
 
+  /// Triggers a repaint of [CustomPaint] without rebuilding the
+  /// surrounding widget tree ([LayoutBuilder], [GestureDetector],
+  /// [MouseRegion], [Listener]).
+  final ValueNotifier<int> _frame = ValueNotifier(0);
+
   bool _gathering  = false;
   double _gatherStart = 0; // ms
   bool _built      = false;
@@ -115,6 +120,7 @@ class _ParticleTextState extends State<ParticleText>
   @override
   void dispose() {
     _ticker.dispose();
+    _frame.dispose();
     super.dispose();
   }
 
@@ -127,7 +133,7 @@ class _ParticleTextState extends State<ParticleText>
     // Smooth pointer
     _smoothPX += (_pointerX - _smoothPX) * 0.18;
     _smoothPY += (_pointerY - _smoothPY) * 0.18;
-    if (mounted) setState(() {});
+    _frame.value++;
   }
 
   // -------------------------------------------------------------------------
@@ -291,24 +297,27 @@ class _ParticleTextState extends State<ParticleText>
           child: Listener(
             onPointerMove:  (e) => _onPointerMove(e.localPosition),
             onPointerUp:    (_) => _onPointerLeave(),
-            child: CustomPaint(
-              size: size,
-              painter: _ParticleTextPainter(
-                particles:    _particles,
-                elapsed:      _elapsed.inMilliseconds.toDouble(),
-                gatherStart:  _gatherStart,
-                gathering:    _gathering,
-                gatherMs:     widget.gatherDuration.inMilliseconds.toDouble(),
-                idleDrift:    widget.idleDrift,
-                pointerActive: _pointerActive,
-                smoothPX:     _smoothPX,
-                smoothPY:     _smoothPY,
-                pointerRepel: widget.pointerRepel,
-                repelRadius:  widget.repelRadius,
-                glow:         widget.glow,
-                highlightColor: widget.highlightColor,
-                particleSize: widget.particleSize,
-                onGatherComplete: () => _gathering = false,
+            child: ListenableBuilder(
+              listenable: _frame,
+              builder: (context, _) => CustomPaint(
+                size: size,
+                painter: _ParticleTextPainter(
+                  particles:    _particles,
+                  elapsed:      _elapsed.inMilliseconds.toDouble(),
+                  gatherStart:  _gatherStart,
+                  gathering:    _gathering,
+                  gatherMs:     widget.gatherDuration.inMilliseconds.toDouble(),
+                  idleDrift:    widget.idleDrift,
+                  pointerActive: _pointerActive,
+                  smoothPX:     _smoothPX,
+                  smoothPY:     _smoothPY,
+                  pointerRepel: widget.pointerRepel,
+                  repelRadius:  widget.repelRadius,
+                  glow:         widget.glow,
+                  highlightColor: widget.highlightColor,
+                  particleSize: widget.particleSize,
+                  onGatherComplete: () => _gathering = false,
+                ),
               ),
             ),
           ),

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/string_utils.dart';
 import '../../widgets/active_room_banner.dart';
+import '../../widgets/grid_background.dart';
+import '../../widgets/neo_pressable.dart';
 import '../../screens/office/office_screen.dart';
 
 class _GroupItem {
@@ -30,12 +33,6 @@ const _kPalette = [
 
 Color _colorFor(String name) =>
     _kPalette[name.codeUnits.fold(0, (a, b) => a + b) % _kPalette.length];
-
-String _initialsFor(String name) {
-  final words = name.trim().split(RegExp(r'\s+'));
-  if (words.length == 1) return words[0].substring(0, 2).toUpperCase();
-  return (words[0][0] + words[1][0]).toUpperCase();
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Screen
@@ -203,7 +200,7 @@ class _GroupListScreenState extends State<GroupListScreen> {
         ),
         // Grid texture
         Positioned.fill(
-          child: CustomPaint(painter: _GridPainter()),
+          child: const GridBackground(alpha: 0.05),
         ),
 
         SafeArea(
@@ -388,43 +385,33 @@ class _GroupsHeaderState extends State<_GroupsHeader> {
 // Group list tile
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _GroupListTile extends StatefulWidget {
+class _GroupListTile extends StatelessWidget {
   const _GroupListTile({required this.group});
   final _GroupItem group;
 
   @override
-  State<_GroupListTile> createState() => _GroupListTileState();
-}
-
-class _GroupListTileState extends State<_GroupListTile> {
-  bool _pressed = false;
-
-  @override
   Widget build(BuildContext context) {
-    final initials = _initialsFor(widget.group.name);
+    final initials = initialsFor(group.name);
 
-    return GestureDetector(
-      onTapDown:   (_) => setState(() => _pressed = true),
-      onTapUp:     (_) => setState(() => _pressed = false),
-      onTapCancel: ()  => setState(() => _pressed = false),
+    return NeoPressable(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => OfficeScreen(groupName: widget.group.name),
+            builder: (context) => OfficeScreen(groupName: group.name),
           ),
         );
       },
-      child: AnimatedContainer(
+      child: (pressed) => AnimatedContainer(
         duration: const Duration(milliseconds: 120),
-        transform: _pressed
+        transform: pressed
             ? Matrix4.translationValues(4.0, 4.0, 0)
             : Matrix4.identity(),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color:     NeoColors.cream,
           border:    NeoBorder.thick,
-          boxShadow: _pressed ? [] : NeoShadows.m,
+          boxShadow: pressed ? [] : NeoShadows.m,
         ),
         child: Row(
           children: [
@@ -433,7 +420,7 @@ class _GroupListTileState extends State<_GroupListTile> {
               width:  52,
               height: 52,
               decoration: BoxDecoration(
-                color:  widget.group.accentColor,
+                color:  group.accentColor,
                 border: NeoBorder.thick,
               ),
               alignment: Alignment.center,
@@ -454,13 +441,13 @@ class _GroupListTileState extends State<_GroupListTile> {
                     children: [
                       Expanded(
                         child: Text(
-                          widget.group.name.toUpperCase(),
+                          group.name.toUpperCase(),
                           style: NeoTextStyles.body.copyWith(fontSize: 14),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (widget.group.isJoined)
+                      if (group.isJoined)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
@@ -489,14 +476,14 @@ class _GroupListTileState extends State<_GroupListTile> {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        widget.group.status.toUpperCase(),
+                        group.status.toUpperCase(),
                         style: NeoTextStyles.label.copyWith(fontSize: 9),
                       ),
                       const SizedBox(width: 14),
                       const Icon(Icons.people_outline_rounded, size: 12, color: NeoColors.ink),
                       const SizedBox(width: 4),
                       Text(
-                        '${widget.group.memberCount} MEMBERS',
+                        '${group.memberCount} MEMBERS',
                         style: NeoTextStyles.label.copyWith(fontSize: 9),
                       ),
                     ],
@@ -526,7 +513,7 @@ class _GroupListTileState extends State<_GroupListTile> {
 // Neo button
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _NeoButton extends StatefulWidget {
+class _NeoButton extends StatelessWidget {
   const _NeoButton({
     required this.label,
     required this.color,
@@ -540,37 +527,27 @@ class _NeoButton extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  State<_NeoButton> createState() => _NeoButtonState();
-}
-
-class _NeoButtonState extends State<_NeoButton> {
-  bool _pressed = false;
-
-  @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown:   (_) => setState(() => _pressed = true),
-      onTapUp:     (_) => setState(() => _pressed = false),
-      onTapCancel: ()  => setState(() => _pressed = false),
-      onTap:       widget.onTap,
-      child: AnimatedContainer(
+    return NeoPressable(
+      onTap: onTap,
+      child: (pressed) => AnimatedContainer(
         duration: const Duration(milliseconds: 100),
-        transform: _pressed
+        transform: pressed
             ? Matrix4.translationValues(4.0, 4.0, 0)
             : Matrix4.identity(),
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color:     widget.color,
+          color:     color,
           border:    NeoBorder.thick,
-          boxShadow: _pressed ? [] : NeoShadows.m,
+          boxShadow: pressed ? [] : NeoShadows.m,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(widget.icon, size: 18, color: NeoColors.ink),
+            Icon(icon, size: 18, color: NeoColors.ink),
             const SizedBox(width: 8),
             Text(
-              widget.label,
+              label,
               style: NeoTextStyles.button.copyWith(fontSize: 12),
             ),
           ],
@@ -619,25 +596,6 @@ class _EmptyState extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Grid texture painter
 // ─────────────────────────────────────────────────────────────────────────────
-
-class _GridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = NeoColors.ink.withValues(alpha: 0.05)
-      ..strokeWidth = 1;
-    const step = 40.0;
-    for (double x = 0; x <= size.width; x += step) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y <= size.height; y += step) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_GridPainter old) => false;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Neo dialog helper

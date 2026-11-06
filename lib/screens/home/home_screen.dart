@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../widgets/particle_text/particle_text_widget.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/string_utils.dart';
+import '../../widgets/grid_background.dart';
+import '../../widgets/particle_text/particle_text_widget.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Data
@@ -29,12 +31,6 @@ const _kRecommendedGroups = [
   _GroupData('Indie Dev Hangout',    '7 online',  13, NeoColors.muted),
   _GroupData('Book Club',            '1 online',  8,  NeoColors.accent),
 ];
-
-String _initialsFor(String name) {
-  final words = name.trim().split(RegExp(r'\s+'));
-  if (words.length == 1) return words[0].substring(0, 2).toUpperCase();
-  return (words[0][0] + words[1][0]).toUpperCase();
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Screen
@@ -80,9 +76,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
           // ── 3. Grid texture overlay ───────────────────────────────────────
           Positioned.fill(
-            child: CustomPaint(
-              painter: _GridPatternPainter(),
-            ),
+            child: const GridBackground(alpha: 0.06),
           ),
 
           // ── 4. Scrollable content ─────────────────────────────────────────
@@ -136,29 +130,6 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Grid pattern painter (graph-paper texture)
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _GridPatternPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = NeoColors.ink.withValues(alpha: 0.06)
-      ..strokeWidth = 1;
-
-    const step = 40.0;
-    for (double x = 0; x <= size.width; x += step) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y <= size.height; y += step) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_GridPatternPainter old) => false;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Hero header: particle title + search bar
 // ─────────────────────────────────────────────────────────────────────────────
@@ -430,7 +401,7 @@ class _GroupCardState extends State<_GroupCard> {
 
   @override
   Widget build(BuildContext context) {
-    final initials = _initialsFor(widget.data.name);
+    final initials = initialsFor(widget.data.name);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),

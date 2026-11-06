@@ -5,6 +5,7 @@ import 'home/home_screen.dart';
 import 'profile/profile_screen.dart';
 import 'friends/friends_screen.dart';
 import '../core/theme/app_theme.dart';
+import '../widgets/neo_pressable.dart';
 
 /// Root scaffold with Neo-Brutalist bottom navigation bar.
 class ShellScreen extends StatefulWidget {
@@ -85,7 +86,7 @@ class _NeoNavBar extends StatelessWidget {
   }
 }
 
-class _NavItem extends StatefulWidget {
+class _NavItem extends StatelessWidget {
   const _NavItem({
     required this.icon,
     required this.label,
@@ -101,30 +102,21 @@ class _NavItem extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  State<_NavItem> createState() => _NavItemState();
-}
-
-class _NavItemState extends State<_NavItem> {
-  bool _pressed = false;
-
-  @override
   Widget build(BuildContext context) {
-    final bg = widget.active ? NeoColors.secondary : NeoColors.cream;
+    final bg = active ? NeoColors.secondary : NeoColors.cream;
 
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      onTap: widget.onTap,
-      child: AnimatedContainer(
+    return NeoPressable(
+      pressOffset: const Offset(2, 2),
+      onTap: onTap,
+      child: (pressed) => AnimatedContainer(
         duration: const Duration(milliseconds: 100),
-        transform: _pressed
+        transform: pressed
             ? Matrix4.translationValues(2.0, 2.0, 0)
             : Matrix4.identity(),
         decoration: BoxDecoration(
           color: bg,
           border: Border(
-            right: widget.isLast
+            right: isLast
                 ? BorderSide.none
                 : const BorderSide(color: NeoColors.ink, width: 4),
           ),
@@ -133,10 +125,10 @@ class _NavItemState extends State<_NavItem> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(widget.icon, color: NeoColors.ink, size: 22),
+            Icon(icon, color: NeoColors.ink, size: 22),
             const SizedBox(height: 3),
             Text(
-              widget.label,
+              label,
               style: NeoTextStyles.label.copyWith(fontSize: 9),
             ),
           ],
