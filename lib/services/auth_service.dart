@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthService {
   AuthService._();
@@ -15,6 +16,7 @@ class AuthService {
 
   Future<void> signOut() async {
     await FirebaseAuth.instance.signOut();
+    await GoogleSignIn().signOut();
   }
 
   Future<String?> register({
@@ -94,6 +96,54 @@ class AuthService {
         email: _emailForUsername(normalizedUsername),
         password: password,
       );
+    } on FirebaseAuthException catch (error) {
+      throw _authException(error);
+    }
+  }
+
+  /// Signs in with Google and creates a Firestore profile if the user is new.
+  ///
+  /// Returns `null` on success, or a warning string if the account was
+  /// created but the Firestore profile could not be saved.
+  Future<String?> signInWithGoogle() async {
+    try {
+      final googleUser = await GoogleSignIn().signIn();
+      if (googleUser == null) return null; // User cancelled the dialog
+
+      final googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      final userCredential =
+          await FirebaseAuth.instance.signInWithCredential(credential);
+      final user = userCredential.user!;
+      final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
+
+      if (!isNewUser) return null;
+
+      // Create a Firestore profile for first-time Google sign-in users.
+      try {
+        final firestore = FirebaseFirestore.instance;
+        final profileRef = firestore.collection('users').doc(user.uid);
+        await profileRef.set({
+          'uid': user.uid,
+          'name': user.displayName ?? googleUser.displayName ?? '',
+          'username': null, // Google users pick a username later
+          'email': user.email ?? googleUser.email,
+          'photoUrl': user.photoURL ?? googleUser.photoUrl ?? '',
+          'authProvider': 'google',
+          'createdAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } on FirebaseException catch (error) {
+        final message =
+            'Login berhasil, tetapi profil gagal disimpan: '
+            '${_firestoreErrorMessage(error)}';
+        debugPrint(message);
+        return message;
+      }
+      return null;
     } on FirebaseAuthException catch (error) {
       throw _authException(error);
     }

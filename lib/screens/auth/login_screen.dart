@@ -41,6 +41,21 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isLoading = true);
+    try {
+      final warning = await AuthService.instance.signInWithGoogle();
+      if (mounted && warning != null) _showMessage(warning);
+      // Auth state updates automatically via authProvider — no callback needed.
+    } on AuthException catch (error) {
+      _showMessage(error.message);
+    } catch (error) {
+      _showMessage('Gagal masuk dengan Google: $error');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   void _showMessage(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -146,10 +161,15 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 8),
                           OutlinedButton.icon(
-                            onPressed: () => _showMessage(
-                              'Google Sign-In belum diaktifkan.',
-                            ),
-                            icon: const Icon(Icons.g_mobiledata, size: 28),
+                            onPressed: _isLoading ? null : _signInWithGoogle,
+                            icon: _isLoading
+                                ? const SizedBox.square(
+                                    dimension: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.g_mobiledata, size: 28),
                             label: const Text('MASUK DENGAN GOOGLE'),
                           ),
                           const Padding(
