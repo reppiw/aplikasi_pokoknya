@@ -4,9 +4,7 @@ import '../../core/theme/app_theme.dart';
 import '../../services/auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key, required this.onRegistered});
-
-  final VoidCallback onRegistered;
+  const RegisterScreen({super.key});
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -58,8 +56,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ..hideCurrentSnackBar()
           ..showSnackBar(SnackBar(content: Text(profileWarning)));
       }
-      widget.onRegistered();
-      Navigator.of(context).pop();
+      // Auth state updates automatically via authProvider — no callback needed.
+      if (mounted) Navigator.of(context).pop();
     } on AuthException catch (error) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(error.message)));

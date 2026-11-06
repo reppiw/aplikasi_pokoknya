@@ -8,9 +8,7 @@ import '../core/theme/app_theme.dart';
 
 /// Root scaffold with Neo-Brutalist bottom navigation bar.
 class ShellScreen extends StatefulWidget {
-  const ShellScreen({super.key, required this.onSignOut});
-
-  final VoidCallback onSignOut;
+  const ShellScreen({super.key});
 
   @override
   State<ShellScreen> createState() => _ShellScreenState();
@@ -25,7 +23,7 @@ class _ShellScreenState extends State<ShellScreen> {
       const HomeScreen(),
       const FriendsScreen(),
       const GroupListScreen(),
-      ProfileScreen(onSignOut: widget.onSignOut),
+      const ProfileScreen(),
     ];
 
     return Scaffold(

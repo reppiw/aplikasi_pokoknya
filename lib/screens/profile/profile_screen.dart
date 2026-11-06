@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../models/user.dart';
+import '../../services/auth_service.dart';
 import 'edit_profile_screen.dart';
 
 const _kCurrentUser = AppUser(
@@ -26,11 +27,9 @@ class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
     super.key,
     this.user = _kCurrentUser,
-    required this.onSignOut,
   });
 
   final AppUser user;
-  final VoidCallback onSignOut;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -99,7 +98,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
 
-    if (shouldSignOut == true) widget.onSignOut();
+    if (shouldSignOut == true) {
+      await AuthService.instance.signOut();
+    }
   }
 
   void _showNotificationsDialog(BuildContext context) {

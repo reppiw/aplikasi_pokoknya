@@ -1,23 +1,39 @@
-import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:aplikasi_pokoknya/main.dart';
+import 'package:aplikasi_pokoknya/providers/auth_provider.dart';
 import 'package:aplikasi_pokoknya/services/auth_service.dart';
 
 void main() {
   testWidgets('App smoke test', (WidgetTester tester) async {
-    await tester.pumpWidget(const App());
-    // Basic smoke test — just ensure the app builds without throwing.
-    expect(find.byType(App), findsOneWidget);
+    // Override authProvider so the app doesn't try to reach Firebase.
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authProvider.overrideWith(
+            (ref) => Stream.value(null),
+          ),
+        ],
+        child: const App(),
+      ),
+    );
+
+    // Pump past the opening animation (2.5 s delay + 1 s curtain).
+    await tester.pumpAndSettle(const Duration(seconds: 4));
+
+    // After the opening animation, the login screen should be visible.
     expect(find.text('MASUK'), findsOneWidget);
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump(const Duration(seconds: 3));
   });
 
   testWidgets('Firebase startup errors are shown instead of a blank screen', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      App(firebaseInitializationError: UnsupportedError('web not set up')),
+      ProviderScope(
+        child: App(
+          firebaseInitializationError: UnsupportedError('web not set up'),
+        ),
+      ),
     );
 
     expect(

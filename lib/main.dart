@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 import 'core/theme/app_theme.dart';
 import 'firebase_options.dart';
+import 'providers/auth_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/shell_screen.dart';
-import 'services/auth_service.dart';
 import 'screens/opening_screen.dart';
 
 Future<void> main() async {
@@ -27,22 +28,14 @@ Future<void> main() async {
   );
 }
 
-class App extends StatefulWidget {
+class App extends ConsumerWidget {
   const App({super.key, this.firebaseInitializationError});
 
   final Object? firebaseInitializationError;
 
   @override
-  State<App> createState() => _AppState();
-}
-
-class _AppState extends State<App> {
-  late bool _isAuthenticated = AuthService.instance.isSignedIn;
-  late bool _showOpening = true;
-
-  @override
-  Widget build(BuildContext context) {
-    if (widget.firebaseInitializationError case final error?) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (firebaseInitializationError case final error?) {
       return MaterialApp(
         title: 'Koboted',
         debugShowCheckedModeBanner: false,
@@ -51,29 +44,52 @@ class _AppState extends State<App> {
       );
     }
 
+    final authState = ref.watch(authProvider);
+
     return MaterialApp(
       title: 'Koboted',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      home: _showOpening
-          ? OpeningScreen(
-              isAuthenticated: _isAuthenticated,
-              onFinished: () {
-                setState(() {
-                  _showOpening = false;
-                });
-              },
-            )
-          : _isAuthenticated
-          ? ShellScreen(
-              onSignOut: () async {
-                await AuthService.instance.signOut();
-                if (mounted) setState(() => _isAuthenticated = false);
-              },
-            )
-          : LoginScreen(
-              onAuthenticated: () => setState(() => _isAuthenticated = true),
-            ),
+      home: _Root(authState: authState),
+    );
+  }
+}
+
+/// Root routing widget — reacts to auth state from the [authProvider] stream.
+///
+/// Shows the opening animation once on startup, then routes to
+/// [ShellScreen] (authenticated) or [LoginScreen] (unauthenticated)
+/// based on the current [authProvider] value.
+class _Root extends StatefulWidget {
+  const _Root({required this.authState});
+
+  final AsyncValue<User?> authState;
+
+  @override
+  State<_Root> createState() => _RootState();
+}
+
+class _RootState extends State<_Root> {
+  bool _showOpening = true;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_showOpening) {
+      return OpeningScreen(
+        onFinished: () => setState(() => _showOpening = false),
+      );
+    }
+
+    return widget.authState.when(
+      loading: () => const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      ),
+      data: (user) => user != null
+          ? const ShellScreen()
+          : const LoginScreen(),
+      error: (error, stack) => Scaffold(
+        body: Center(child: Text('Auth error: $error')),
+      ),
     );
   }
 }

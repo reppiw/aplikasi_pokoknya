@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../core/theme/app_theme.dart';
-import 'auth/login_screen.dart';
 
 class OpeningScreen extends StatefulWidget {
-  final bool isAuthenticated;
   final VoidCallback onFinished;
 
   const OpeningScreen({
     super.key,
-    required this.isAuthenticated,
     required this.onFinished,
   });
 
@@ -21,8 +18,6 @@ class _OpeningScreenState extends State<OpeningScreen>
     with TickerProviderStateMixin {
   late AnimationController _loadingController;
   late AnimationController _curtainController;
-
-  bool _startCurtain = false;
 
   @override
   void initState() {
@@ -42,10 +37,6 @@ class _OpeningScreenState extends State<OpeningScreen>
 
     Future.delayed(const Duration(milliseconds: 2500), () {
       if (!mounted) return;
-
-      setState(() {
-        _startCurtain = true;
-      });
 
       _curtainController.forward().then((_) {
         if (mounted) {
@@ -169,21 +160,7 @@ class _OpeningScreenState extends State<OpeningScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          // LOGIN SCREEN DI BELAKANG
-          Positioned.fill(
-            child: LoginScreen(
-              onAuthenticated: widget.onFinished,
-            ),
-          ),
-
-          // OPENING SCREEN
-          Positioned.fill(
-            child: _buildOpeningScreen(),
-          ),
-        ],
-      ),
+      body: _buildOpeningScreen(),
     );
   }
 }
