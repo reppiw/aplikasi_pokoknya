@@ -4,6 +4,9 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+const _kWebClientId =
+    '276264512937-f9j0skoa47r4i3l5jkfm5ikeduig0e07.apps.googleusercontent.com';
+
 class AuthService {
   AuthService._();
 
@@ -16,7 +19,9 @@ class AuthService {
 
   Future<void> signOut() async {
     await FirebaseAuth.instance.signOut();
-    await GoogleSignIn().signOut();
+    await GoogleSignIn(
+      clientId: kIsWeb ? _kWebClientId : null,
+    ).signOut();
   }
 
   Future<String?> register({
@@ -107,7 +112,10 @@ class AuthService {
   /// created but the Firestore profile could not be saved.
   Future<String?> signInWithGoogle() async {
     try {
-      final googleUser = await GoogleSignIn().signIn();
+      final googleSignIn = GoogleSignIn(
+        clientId: kIsWeb ? _kWebClientId : null,
+      );
+      final googleUser = await googleSignIn.signIn();
       if (googleUser == null) return null; // User cancelled the dialog
 
       final googleAuth = await googleUser.authentication;
