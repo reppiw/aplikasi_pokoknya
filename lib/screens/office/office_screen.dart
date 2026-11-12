@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../game/office_game.dart';
-import '../../game/components/office_map.dart';
 import '../../models/avatar_state.dart';
 import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
@@ -40,14 +39,16 @@ class _OfficeScreenState extends State<OfficeScreen> {
     final userId = AuthService.instance.currentUser?.uid ?? 'You';
     _game = OfficeGame(username: userId, initialAvatarStates: _avatarStates);
     if (userId != 'You') {
-      final startPosition = isoToWorld(3, 3);
+      // Start position: middle of the Lounge (top-left quadrant of the 2D map)
+      const startX = 8 * 32.0;
+      const startY = 10 * 32.0;
       _databaseService
           .saveAvatarState(
             groupId,
             AvatarState(
               userId: userId,
-              x: startPosition.x,
-              y: startPosition.y,
+              x: startX,
+              y: startY,
               roomId: 'free',
               isOnline: true,
               lastUpdated: DateTime.now(),

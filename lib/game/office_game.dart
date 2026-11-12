@@ -9,13 +9,11 @@ import 'components/joystick_controller.dart';
 import '../models/avatar_state.dart';
 import '../services/room_session_manager.dart';
 
-/// Root Flame game. Mounted inside OfficeScreen via GameWidget.
+/// Root Flame game — top-down 2D office.
+/// Mounted inside OfficeScreen via GameWidget.
 class OfficeGame extends FlameGame {
   OfficeGame({required this.username, this.initialAvatarStates = const []})
-    : super(
-        // Use the device's real pixel dimensions — no letterboxing.
-        camera: CameraComponent(),
-      );
+      : super(camera: CameraComponent());
 
   final String username;
   final List<AvatarState> initialAvatarStates;
@@ -24,7 +22,6 @@ class OfficeGame extends FlameGame {
   final ValueNotifier<String?> activeRoomNotifier = ValueNotifier(null);
 
   late final PlayerComponent _player;
-  late final JoystickController _joystick;
   final Map<String, GhostComponent> _ghosts = {};
   List<AvatarState>? _pendingAvatarStates;
   bool _isReady = false;
@@ -34,50 +31,45 @@ class OfficeGame extends FlameGame {
 
   @override
   Future<void> onLoad() async {
-    // Tell Flame to look in assets/ directly instead of assets/images/
     images.prefix = 'assets/';
 
-    // 1. Office map
+    // 1. Office map (rooms + walls + labels)
     final map = OfficeMap(onRoomChanged: _onRoomChanged);
     await world.add(map);
 
-    // 2. Player — start at grid (3, 3) in the Lounge
+    // 2. Player — start in the middle of the Lounge (top-left quadrant)
     _player = PlayerComponent(
       username: username,
-      startPosition: isoToWorld(3, 3),
+      startPosition: Vector2(8 * kTileSize, 10 * kTileSize),
     );
     await world.add(_player);
 
-    // 3. Camera follows player with gentle smoothing so it glides rather than snaps.
-    //    maxSpeed is in world units/s; scale by zoom so it feels consistent
-    //    regardless of how zoomed in we are.
-    const targetTilesAcross = 5.0;
+    // 3. Camera: zoom so ~12 tiles fit across the shorter screen dimension,
+    //    then follow the player smoothly.
+    const targetTilesAcross = 12.0;
     final shortSide = size.x < size.y ? size.x : size.y;
-    final zoom = shortSide / (targetTilesAcross * kTileW);
+    final zoom = shortSide / (targetTilesAcross * kTileSize);
     camera.viewfinder.zoom = zoom;
-    // At this zoom, ~3 tiles/s in screen space is a comfortable follow speed.
-    camera.follow(_player, maxSpeed: 3 * kTileW / zoom);
+    camera.follow(_player, maxSpeed: 400 / zoom);
 
-    // 4. Joystick in HUD/viewport space
-    _joystick = JoystickController();
-    await camera.viewport.add(_joystick);
-    _player.joystick = _joystick;
+    // 4. Joystick in HUD space
+    final joystick = JoystickController();
+    await camera.viewport.add(joystick);
+    _player.joystick = joystick;
 
-    // 5. Initial ghost avatars
+    // 5. Initial ghosts
     for (final state in initialAvatarStates) {
       await _spawnGhost(state);
     }
+
     _isReady = true;
-    final pendingStates = _pendingAvatarStates;
+    final pending = _pendingAvatarStates;
     _pendingAvatarStates = null;
-    if (pendingStates != null) {
-      await updateGhosts(pendingStates);
-    }
+    if (pending != null) await updateGhosts(pending);
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
-  /// Called by OfficeScreen when Firebase sends updated avatar states.
   Future<void> updateGhosts(List<AvatarState> states) async {
     if (!_isReady) {
       _pendingAvatarStates = states;

@@ -29,9 +29,9 @@ class JoystickController extends JoystickComponent {
         );
 
   @override
-  void onGameResize(Vector2 size) {
-    super.onGameResize(size);
+  void onGameResize(Vector2 gameSize) {
+    super.onGameResize(gameSize);
     // Centre horizontally, _bottomInset px above the bottom edge.
-    position = Vector2(size.x / 2, size.y - _bottomInset);
+    position = Vector2(gameSize.x / 2, gameSize.y - _bottomInset);
   }
 }

@@ -43,8 +43,6 @@ flutter:
 
   assets:
     - assets/Homepage_Background.jpg
-    - assets/Isometric/
-    - assets/Angle/
     - assets/Characters/Human/
 
   shaders:
