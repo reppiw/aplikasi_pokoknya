@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/dummy_friends.dart';
 import '../../models/friend_model.dart';
+import '../../models/user.dart';
 import '../../widgets/active_room_banner.dart';
+import '../chat/chat_screen.dart';
 
 class FriendsScreen extends StatefulWidget {
   const FriendsScreen({super.key});
@@ -240,7 +242,19 @@ class _FriendTile extends StatelessWidget {
                   _buildIconButton(
                     icon: Icons.chat_bubble_outline_rounded,
                     onTap: () {
-                      // TODO: Buka DM Chat
+                      final appUserFriend = AppUser(
+                        id: friend.id,
+                        displayName: friend.name,
+                        avatarUrl: friend.avatarUrl ?? '',
+                      );
+
+                      // Navigasi ke Halaman Chat
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ChatScreen(friend: appUserFriend),
+                        ),
+                      );
                     },
                   ),
                   const SizedBox(width: 6),
