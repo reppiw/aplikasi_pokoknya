@@ -67,23 +67,34 @@ class AuthService {
         });
       });
     } on FirebaseAuthException catch (error) {
+      // Firestore write failed after the Auth account was created.
+      // Delete the orphaned account so the user can try registering again.
+      await user.delete().catchError(
+        (Object e) => debugPrint('Failed to clean up orphaned auth account: $e'),
+      );
       final message =
           'Akun berhasil dibuat, tetapi profil Firebase gagal diperbarui: '
           '${_authErrorMessage(error)}';
       debugPrint(message);
       return message;
     } on FirebaseException catch (error) {
+      await user.delete().catchError(
+        (Object e) => debugPrint('Failed to clean up orphaned auth account: $e'),
+      );
       final message =
           'Akun berhasil dibuat, tetapi profil gagal disimpan: '
           '${_firestoreErrorMessage(error)}';
       debugPrint(message);
       return message;
-    } on AuthException catch (error) {
-      final message =
-          'Akun berhasil dibuat, tetapi profil tidak dapat disimpan: '
-          '${error.message}';
-      debugPrint(message);
-      return message;
+    } on AuthException {
+      // AuthException means the username was taken — the transaction was rolled
+      // back, so no Firestore data was written. Clean up the auth account.
+      await user.delete().catchError(
+        (Object e) => debugPrint('Failed to clean up orphaned auth account: $e'),
+      );
+      // Re-throw so the UI can show "username already taken" rather than a
+      // generic warning message.
+      rethrow;
     }
     return null;
   }

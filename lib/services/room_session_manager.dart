@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../models/room.dart';
-import '../../models/room_history_item.dart';
+import '../models/room_history_item.dart';
 
 class ActiveRoomSession {
   final Room room;
