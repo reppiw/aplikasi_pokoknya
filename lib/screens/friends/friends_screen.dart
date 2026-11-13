@@ -245,7 +245,7 @@ class _FriendTile extends StatelessWidget {
                       final appUserFriend = AppUser(
                         id: friend.id,
                         displayName: friend.name,
-                        avatarUrl: friend.avatarUrl ?? '',
+                        avatarUrl: friend.avatarUrl,
                       );
 
                       // Navigasi ke Halaman Chat

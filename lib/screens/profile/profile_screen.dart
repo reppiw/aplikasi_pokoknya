@@ -1,17 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../models/user.dart';
+import '../../providers/user_profile_provider.dart';
 import '../../services/auth_service.dart';
 import 'edit_profile_screen.dart';
 import '../../widgets/grid_background.dart';
 import '../../widgets/neo_pressable.dart';
-
-const _kCurrentUser = AppUser(
-  id: 'demo-user-1',
-  displayName: 'aku nak makan',
-  avatarUrl: '',
-);
 
 class _ProfileStat {
   const _ProfileStat(this.label, this.value, this.accentColor);
@@ -19,53 +15,35 @@ class _ProfileStat {
   final Color accentColor;
 }
 
-const _kStats = [
-  _ProfileStat('GROUPS', '4', NeoColors.accent),
-  _ProfileStat('FRIENDS', '23', NeoColors.secondary),
+// Stats are still placeholders — will be replaced when groups/friends are wired.
+List<_ProfileStat> _buildStats() => const [
+  _ProfileStat('GROUPS', '-', NeoColors.accent),
+  _ProfileStat('FRIENDS', '-', NeoColors.secondary),
   _ProfileStat('STATUS', 'ON', NeoColors.muted),
 ];
 
-class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({
-    super.key,
-    this.user = _kCurrentUser,
-  });
-
-  final AppUser user;
+class ProfileScreen extends ConsumerStatefulWidget {
+  const ProfileScreen({super.key});
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
-  AppUser? _currentUser;
-
-  AppUser get currentUser => _currentUser ?? widget.user;
-
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _pushNotifications = true;
   bool _emailNotifications = false;
   bool _privateAccount = false;
   bool _allowDirectMessages = true;
 
-  @override
-  void initState() {
-    super.initState();
-    _currentUser = widget.user;
-  }
-
-  Future<void> _openEditProfile() async {
-    final updatedUser = await Navigator.push<AppUser>(
+  Future<void> _openEditProfile(AppUser currentUser) async {
+    await Navigator.push<void>(
       context,
       MaterialPageRoute(
         builder: (context) => EditProfileScreen(user: currentUser),
       ),
     );
-
-    if (updatedUser != null) {
-      setState(() {
-        _currentUser = updatedUser;
-      });
-    }
+    // No local setState needed — the StreamProvider will emit the updated
+    // profile automatically after EditProfileScreen writes to Firestore.
   }
 
   Future<void> _confirmSignOut(BuildContext context) async {
@@ -261,6 +239,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final profileAsync = ref.watch(userProfileProvider);
+
+    return profileAsync.when(
+      loading: () => const Scaffold(
+        backgroundColor: NeoColors.cream,
+        body: Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, _) => Scaffold(
+        backgroundColor: NeoColors.cream,
+        body: Center(
+          child: Text('Failed to load profile: $error', style: NeoTextStyles.body),
+        ),
+      ),
+      data: (user) {
+        if (user == null) {
+          return const Scaffold(
+            backgroundColor: NeoColors.cream,
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        return _buildContent(user);
+      },
+    );
+  }
+
+  Widget _buildContent(AppUser user) {
+    final stats = _buildStats();
     return Stack(
       children: [
         Positioned.fill(
@@ -279,8 +284,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               SliverToBoxAdapter(child: _PageHeading()),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                sliver:
-                SliverToBoxAdapter(child: _ProfileCard(user: currentUser)),
+                sliver: SliverToBoxAdapter(
+                  child: _ProfileCard(user: user, stats: stats),
+                ),
               ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
@@ -292,19 +298,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Icons.edit_outlined,
                         'Edit Profile',
                         NeoColors.secondary,
-                        _openEditProfile,
+                        () => _openEditProfile(user),
                       ),
                       _MenuItem(
                         Icons.notifications_outlined,
                         'Notifications',
                         NeoColors.muted,
-                            () => _showNotificationsDialog(context),
+                        () => _showNotificationsDialog(context),
                       ),
                       _MenuItem(
                         Icons.lock_outline,
                         'Privacy & Safety',
                         NeoColors.accent,
-                            () => _showPrivacyDialog(context),
+                        () => _showPrivacyDialog(context),
                       ),
                     ],
                   ),
@@ -320,7 +326,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Icons.help_outline,
                         'Help & Support',
                         NeoColors.muted,
-                            () => _showHelpDialog(context),
+                        () => _showHelpDialog(context),
                       ),
                     ],
                   ),
@@ -376,8 +382,9 @@ class _PageHeading extends StatelessWidget {
 }
 
 class _ProfileCard extends StatelessWidget {
-  const _ProfileCard({required this.user});
+  const _ProfileCard({required this.user, required this.stats});
   final AppUser user;
+  final List<_ProfileStat> stats;
 
   @override
   Widget build(BuildContext context) {
@@ -473,7 +480,9 @@ class _ProfileCard extends StatelessWidget {
                     border: NeoBorder.thin,
                   ),
                   child: Text(
-                    '@${user.id}'.toUpperCase(),
+                    user.username.isNotEmpty
+                        ? '@${user.username}'.toUpperCase()
+                        : '@${user.id}'.toUpperCase(),
                     style: NeoTextStyles.label.copyWith(fontSize: 10),
                   ),
                 ),
@@ -485,8 +494,8 @@ class _ProfileCard extends StatelessWidget {
               border: Border(top: BorderSide(color: NeoColors.ink, width: 4)),
             ),
             child: Row(
-              children: _kStats.map((stat) {
-                final isLast = _kStats.last == stat;
+              children: stats.map((stat) {
+                final isLast = stats.last == stat;
                 return Expanded(
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 16),

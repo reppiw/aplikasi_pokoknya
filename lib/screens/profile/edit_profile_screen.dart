@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/user.dart';
+import '../../services/auth_service.dart';
+import '../../services/user_profile_service.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key, required this.user});
@@ -12,66 +14,66 @@ class EditProfileScreen extends StatefulWidget {
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _profileService = UserProfileService();
 
   late TextEditingController _nameController;
   late TextEditingController _bioController;
-  late TextEditingController _emailController;
-  bool _notificationsEnabled = true;
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.user.displayName);
-    _emailController =
-        TextEditingController(text: '${widget.user.id}@app.com');
-    _bioController =
-        TextEditingController(text: 'Enthusiastic Flutter developer.');
+    _bioController = TextEditingController(text: widget.user.bio);
   }
 
   @override
   void dispose() {
     _nameController.dispose();
-    _emailController.dispose();
     _bioController.dispose();
     super.dispose();
   }
 
-  // Fungsi simpan profil (mengupdate nama dan email/id)
   Future<void> _handleSave() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
+    if (!_formKey.currentState!.validate()) return;
 
-      await Future.delayed(const Duration(milliseconds: 600));
+    final uid = AuthService.instance.currentUser?.uid;
+    if (uid == null) return;
 
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-
-      // Ambil input email, lalu ekstrak bagian depannya untuk dijadikan ID baru
-      final emailInput = _emailController.text.trim();
-      final extractedId = emailInput.contains('@')
-          ? emailInput.split('@').first
-          : widget.user.id;
-
-      // Buat objek AppUser baru dengan data terbaru
-      final updatedUser = AppUser(
-        id: extractedId,
+    setState(() => _isLoading = true);
+    try {
+      await _profileService.updateProfile(
+        uid: uid,
         displayName: _nameController.text.trim(),
-        avatarUrl: widget.user.avatarUrl,
+        bio: _bioController.text.trim(),
       );
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'PROFILE UPDATED SUCCESSFULLY!',
+            'PROFILE UPDATED!',
             style: NeoTextStyles.label.copyWith(color: NeoColors.white),
           ),
           backgroundColor: NeoColors.ink,
         ),
       );
-
-      // Kembalikan data user terbaru ke ProfileScreen
-      Navigator.pop(context, updatedUser);
+      // The StreamProvider in ProfileScreen will re-emit with the new data
+      // automatically — no need to pass anything back.
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'FAILED TO SAVE: $e',
+            style: NeoTextStyles.label.copyWith(color: NeoColors.white),
+          ),
+          backgroundColor: NeoColors.accent,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -119,7 +121,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: NeoColors.ink),
-          onPressed: _confirmCancel,
+          onPressed: _isLoading ? null : _confirmCancel,
         ),
         title: Text('EDIT PROFILE', style: NeoTextStyles.h2),
         bottom: const PreferredSize(
@@ -134,11 +136,38 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Read-only username chip
+              if (widget.user.username.isNotEmpty) ...[
+                _buildLabel('USERNAME'),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: NeoColors.muted,
+                    border: NeoBorder.thick,
+                  ),
+                  child: Text(
+                    '@${widget.user.username}',
+                    style: NeoTextStyles.body.copyWith(color: NeoColors.ink),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, bottom: 16),
+                  child: Text(
+                    'Username cannot be changed.',
+                    style: NeoTextStyles.label.copyWith(
+                      fontSize: 10,
+                      color: NeoColors.ink.withValues(alpha: 0.5),
+                    ),
+                  ),
+                ),
+              ],
+
               _buildLabel('DISPLAY NAME'),
               TextFormField(
                 controller: _nameController,
                 style: NeoTextStyles.body,
-                decoration: _neoInputDecoration('Enter full name'),
+                decoration: _neoInputDecoration('Enter display name'),
                 validator: (val) {
                   if (val == null || val.trim().isEmpty) {
                     return 'Name cannot be empty!';
@@ -148,55 +177,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
               const SizedBox(height: 16),
 
-              _buildLabel('EMAIL ADDRESS'),
-              TextFormField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                style: NeoTextStyles.body,
-                decoration: _neoInputDecoration('Enter email address'),
-                validator: (val) {
-                  if (val == null || !val.contains('@')) {
-                    return 'Invalid email format!';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              _buildLabel('BIO / DESCRIPTION'),
+              _buildLabel('BIO'),
               TextFormField(
                 controller: _bioController,
                 maxLines: 3,
                 style: NeoTextStyles.body,
                 decoration: _neoInputDecoration('Write a short bio...'),
                 validator: (val) {
-                  if (val == null || val.trim().length < 5) {
-                    return 'Bio must be at least 5 characters long!';
+                  if (val != null && val.trim().isNotEmpty && val.trim().length < 5) {
+                    return 'Bio must be at least 5 characters or empty.';
                   }
                   return null;
                 },
-              ),
-              const SizedBox(height: 16),
-
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: NeoColors.white,
-                  border: NeoBorder.thick,
-                  boxShadow: NeoShadows.s,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('ENABLE NOTIFICATIONS', style: NeoTextStyles.body),
-                    Switch(
-                      value: _notificationsEnabled,
-                      activeThumbColor: NeoColors.secondary,
-                      onChanged: (val) =>
-                          setState(() => _notificationsEnabled = val),
-                    ),
-                  ],
-                ),
               ),
               const SizedBox(height: 30),
 
@@ -227,13 +219,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       onPressed: _isLoading ? null : _handleSave,
                       child: _isLoading
                           ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 3,
-                          color: NeoColors.ink,
-                        ),
-                      )
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 3,
+                                color: NeoColors.ink,
+                              ),
+                            )
                           : Text('SAVE', style: NeoTextStyles.button),
                     ),
                   ),
