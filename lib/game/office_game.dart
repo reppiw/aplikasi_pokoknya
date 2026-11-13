@@ -27,7 +27,7 @@ class OfficeGame extends FlameGame {
   bool _isReady = false;
 
   @override
-  Color backgroundColor() => const Color(0xFF1A1A2E);
+  Color backgroundColor() => const Color(0xFFC9AE8B);
 
   @override
   Future<void> onLoad() async {

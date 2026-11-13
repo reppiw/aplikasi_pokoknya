@@ -50,10 +50,10 @@ class _NeoNavBar extends StatelessWidget {
   final ValueChanged<int> onTap;
 
   static const _items = [
-    (icon: Icons.home_outlined,        label: 'HOME'),
-    (icon: Icons.people_outline,       label: 'FRIENDS'),
-    (icon: Icons.group_work_outlined,  label: 'GROUPS'),
-    (icon: Icons.person_outline,       label: 'PROFILE'),
+    (icon: Icons.home_outlined, label: 'HOME'),
+    (icon: Icons.people_outline, label: 'FRIENDS'),
+    (icon: Icons.group_work_outlined, label: 'GROUPS'),
+    (icon: Icons.person_outline, label: 'PROFILE'),
   ];
 
   @override
@@ -127,10 +127,7 @@ class _NavItem extends StatelessWidget {
           children: [
             Icon(icon, color: NeoColors.ink, size: 22),
             const SizedBox(height: 3),
-            Text(
-              label,
-              style: NeoTextStyles.label.copyWith(fontSize: 9),
-            ),
+            Text(label, style: NeoTextStyles.label.copyWith(fontSize: 9)),
           ],
         ),
       ),
