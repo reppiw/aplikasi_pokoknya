@@ -12,11 +12,19 @@ import '../services/room_session_manager.dart';
 /// Root Flame game — top-down 2D office.
 /// Mounted inside OfficeScreen via GameWidget.
 class OfficeGame extends FlameGame {
-  OfficeGame({required this.username, this.initialAvatarStates = const []})
-      : super(camera: CameraComponent());
+  OfficeGame({
+    required this.username,
+    this.initialAvatarStates = const [],
+    this.initialPosition,
+    this.onAvatarStateChanged,
+  }) : super(camera: CameraComponent());
 
   final String username;
   final List<AvatarState> initialAvatarStates;
+  final Vector2? initialPosition;
+
+  /// Callback fired whenever the local player's position or current room changes.
+  final void Function(Vector2 position, String? roomId)? onAvatarStateChanged;
 
   /// Notified whenever the local player enters/leaves a room.
   final ValueNotifier<String?> activeRoomNotifier = ValueNotifier(null);
@@ -25,6 +33,8 @@ class OfficeGame extends FlameGame {
   final Map<String, GhostComponent> _ghosts = {};
   List<AvatarState>? _pendingAvatarStates;
   bool _isReady = false;
+
+  Vector2 get playerPosition => _player.position;
 
   @override
   Color backgroundColor() => const Color(0xFFC9AE8B);
@@ -37,10 +47,21 @@ class OfficeGame extends FlameGame {
     final map = OfficeMap(onRoomChanged: _onRoomChanged);
     await world.add(map);
 
-    // 2. Player — start in the middle of the Lounge (top-left quadrant)
+    // 2. Determine start position:
+    // Prefer explicit initialPosition, then saved position in group state, then default Lounge.
+    Vector2 startPos = initialPosition ?? Vector2(8 * kTileSize, 10 * kTileSize);
+    final savedSelf =
+        initialAvatarStates.where((s) => s.userId == username).firstOrNull;
+    if (savedSelf != null && initialPosition == null) {
+      startPos = Vector2(savedSelf.x, savedSelf.y);
+    }
+
     _player = PlayerComponent(
       username: username,
-      startPosition: Vector2(8 * kTileSize, 10 * kTileSize),
+      startPosition: startPos,
+      onPositionChanged: (pos) {
+        onAvatarStateChanged?.call(pos, activeRoomNotifier.value);
+      },
     );
     await world.add(_player);
 
@@ -112,6 +133,9 @@ class OfficeGame extends FlameGame {
       );
     } else {
       sm.leaveCurrentRoom();
+    }
+    if (_isReady) {
+      onAvatarStateChanged?.call(_player.position, roomId);
     }
   }
 

@@ -41,7 +41,7 @@ class GhostComponent extends PositionComponent {
 
     _circle = CircleComponent(
       radius: PlayerComponent.kAvatarRadius,
-      paint: Paint()..color = color.withValues(alpha: _state.isOnline ? 0.85 : 0.35),
+      paint: Paint()..color = color.withValues(alpha: _state.isCurrentlyOnline ? 0.85 : 0.35),
       anchor: Anchor.center,
       position: Vector2.all(PlayerComponent.kAvatarRadius),
     );
@@ -53,7 +53,7 @@ class GhostComponent extends PositionComponent {
       position: Vector2(PlayerComponent.kAvatarRadius, -4),
       textRenderer: TextPaint(
         style: TextStyle(
-          color: _state.isOnline
+          color: _state.isCurrentlyOnline
               ? const Color(0xFF88DDFF)
               : const Color(0xFFAAAAAA),
           fontSize: 10,
@@ -71,7 +71,7 @@ class GhostComponent extends PositionComponent {
     _targetPosition = Vector2(newState.x, newState.y);
     final color = _colorFor(newState.userId);
     _circle.paint.color =
-        color.withValues(alpha: newState.isOnline ? 0.85 : 0.35);
+        color.withValues(alpha: newState.isCurrentlyOnline ? 0.85 : 0.35);
   }
 
   @override
@@ -86,7 +86,7 @@ class GhostComponent extends PositionComponent {
     position.add(_scratch);
 
     // Offline float animation.
-    if (!_state.isOnline) {
+    if (!_state.isCurrentlyOnline) {
       _floatTimer += dt * 1.8;
       _circle.position = Vector2(
         PlayerComponent.kAvatarRadius,

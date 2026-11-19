@@ -13,7 +13,9 @@ class PlayerComponent extends PositionComponent
   PlayerComponent({
     required this.username,
     required Vector2 startPosition,
-  }) : super(
+    this.onPositionChanged,
+  })  : _lastSyncedPosition = startPosition.clone(),
+        super(
           position: startPosition,
           size: Vector2.all(kAvatarRadius * 2),
           anchor: Anchor.center,
@@ -21,10 +23,17 @@ class PlayerComponent extends PositionComponent
 
   static const double kAvatarRadius = 14.0;
   static const double _speed        = 160.0; // px/s
+  static const double _kSyncInterval = 0.2; // 5 Hz update rate
+  static const double _kMinMoveDistanceSq = 16.0; // 4 px threshold
 
   final String username;
+  final void Function(Vector2 position)? onPositionChanged;
   JoystickController? joystick;
   OfficeMap? _map;
+
+  final Vector2 _lastSyncedPosition;
+  double _syncTimer = 0.0;
+  bool _wasMoving = false;
 
   /// Reusable scratch vector — no heap alloc per frame.
   final Vector2 _move = Vector2.zero();
@@ -66,19 +75,41 @@ class PlayerComponent extends PositionComponent
     super.update(dt);
 
     final j = joystick;
-    if (j == null || j.direction == JoystickDirection.idle) return;
+    final isMoving = j != null && j.direction != JoystickDirection.idle;
 
-    // Normalize diagonal input so diagonal speed = straight speed.
-    _move
-      ..setFrom(j.relativeDelta)
-      ..normalize()
-      ..scale(_speed * dt);
+    if (isMoving) {
+      _wasMoving = true;
 
-    // Attempt X move, then Y move separately — allows sliding along walls.
-    _tryMove(Vector2(_move.x, 0));
-    _tryMove(Vector2(0, _move.y));
+      // Normalize diagonal input so diagonal speed = straight speed.
+      _move
+        ..setFrom(j.relativeDelta)
+        ..normalize()
+        ..scale(_speed * dt);
 
-    _map?.checkPlayerRoom(position);
+      // Attempt X move, then Y move separately — allows sliding along walls.
+      _tryMove(Vector2(_move.x, 0));
+      _tryMove(Vector2(0, _move.y));
+
+      _map?.checkPlayerRoom(position);
+
+      // Throttled position sync while moving (e.g. 5 Hz)
+      _syncTimer += dt;
+      if (_syncTimer >= _kSyncInterval) {
+        if (position.distanceToSquared(_lastSyncedPosition) >= _kMinMoveDistanceSq) {
+          _lastSyncedPosition.setFrom(position);
+          onPositionChanged?.call(position);
+        }
+        _syncTimer = 0.0;
+      }
+    } else if (_wasMoving) {
+      // User just released joystick / stopped moving: immediately send final settled position
+      _wasMoving = false;
+      _syncTimer = 0.0;
+      if (position.distanceToSquared(_lastSyncedPosition) >= 1.0) {
+        _lastSyncedPosition.setFrom(position);
+        onPositionChanged?.call(position);
+      }
+    }
   }
 
   void _tryMove(Vector2 delta) {

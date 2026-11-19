@@ -16,53 +16,51 @@ import '../../services/database_service.dart';
 ///   2. Room banner overlay ← shows current room, slides in from top
 ///   3. Exit button         ← top-right, returns to shell
 class OfficeScreen extends StatefulWidget {
-  const OfficeScreen({super.key, this.groupName});
+  const OfficeScreen({super.key, this.groupName, this.groupId});
 
   /// The name of the group whose office is being opened.
   /// Shown in the top bar. Falls back to 'OFFICE' if null.
   final String? groupName;
 
+  /// The ID of the group for persistent presence. Defaults to 'default'.
+  final String? groupId;
+
   @override
   State<OfficeScreen> createState() => _OfficeScreenState();
 }
 
-class _OfficeScreenState extends State<OfficeScreen> {
+class _OfficeScreenState extends State<OfficeScreen> with WidgetsBindingObserver {
   late final OfficeGame _game;
   final List<AvatarState> _avatarStates = [];
   final DatabaseService _databaseService = DatabaseService();
   StreamSubscription<List<AvatarState>>? _avatarSubscription;
 
+  String get _effectiveGroupId => widget.groupId ?? 'default';
+
+  double _currentX = 8 * 32.0;
+  double _currentY = 10 * 32.0;
+  String _currentRoomId = 'free';
+
+  bool _isSyncing = false;
+  bool _hasPendingSync = false;
+
   @override
   void initState() {
     super.initState();
-    const groupId = 'default';
+    WidgetsBinding.instance.addObserver(this);
     final userId = AuthService.instance.currentUser?.uid ?? 'You';
-    _game = OfficeGame(username: userId, initialAvatarStates: _avatarStates);
-    if (userId != 'You') {
-      // Start position: middle of the Lounge (top-left quadrant of the 2D map)
-      const startX = 8 * 32.0;
-      const startY = 10 * 32.0;
-      _databaseService
-          .saveAvatarState(
-            groupId,
-            AvatarState(
-              userId: userId,
-              x: startX,
-              y: startY,
-              roomId: 'free',
-              isOnline: true,
-              lastUpdated: DateTime.now(),
-            ),
-          )
-          .catchError((Object error, StackTrace stackTrace) {
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Gagal menyimpan status kantor: $error')),
-            );
-          });
-    }
+
+    _game = OfficeGame(
+      username: userId,
+      initialAvatarStates: _avatarStates,
+      onAvatarStateChanged: _onAvatarStateChanged,
+    );
+
+    // Initial presence announce
+    _requestSync(isOnline: true);
+
     _avatarSubscription = _databaseService
-        .watchGroupAvatarStates(groupId)
+        .watchGroupAvatarStates(_effectiveGroupId)
         .listen(
           (states) {
             _avatarStates
@@ -79,9 +77,69 @@ class _OfficeScreenState extends State<OfficeScreen> {
         );
   }
 
+  void _onAvatarStateChanged(Vector2 position, String? roomId) {
+    _currentX = position.x;
+    _currentY = position.y;
+    if (roomId != null) {
+      _currentRoomId = roomId;
+    }
+    _requestSync(isOnline: true);
+  }
+
+  Future<void> _saveAvatarState({required bool isOnline}) async {
+    final userId = AuthService.instance.currentUser?.uid;
+    if (userId == null) return;
+
+    final state = AvatarState(
+      userId: userId,
+      x: _currentX,
+      y: _currentY,
+      roomId: _currentRoomId,
+      isOnline: isOnline,
+      lastUpdated: DateTime.now(),
+    );
+
+    try {
+      await _databaseService.saveAvatarState(_effectiveGroupId, state);
+    } catch (e) {
+      debugPrint('Failed to save avatar state: $e');
+    }
+  }
+
+  void _requestSync({required bool isOnline}) {
+    if (_isSyncing) {
+      _hasPendingSync = true;
+      return;
+    }
+    _isSyncing = true;
+    _saveAvatarState(isOnline: isOnline).whenComplete(() {
+      _isSyncing = false;
+      if (_hasPendingSync && mounted) {
+        _hasPendingSync = false;
+        _requestSync(isOnline: true);
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.hidden) {
+      // Mark offline when app is minimized or backgrounded
+      _saveAvatarState(isOnline: false);
+    } else if (state == AppLifecycleState.resumed) {
+      // Mark online when returning to foreground
+      _requestSync(isOnline: true);
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _avatarSubscription?.cancel();
+    // Mark user offline upon exiting office
+    _saveAvatarState(isOnline: false);
     super.dispose();
   }
 

@@ -3,6 +3,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/string_utils.dart';
 import '../../widgets/grid_background.dart';
 import '../../widgets/particle_text/particle_text_widget.dart';
+import '../office/office_screen.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Data
@@ -410,7 +411,14 @@ class _GroupCardState extends State<_GroupCard> {
         onTapDown:   (_) => setState(() => _pressed = true),
         onTapUp:     (_) => setState(() => _pressed = false),
         onTapCancel: ()  => setState(() => _pressed = false),
-        onTap:       () {},
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => OfficeScreen(groupName: widget.data.name),
+            ),
+          );
+        },
         child: AnimatedContainer(
           duration:  const Duration(milliseconds: 150),
           width:     152,

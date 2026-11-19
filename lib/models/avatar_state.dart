@@ -17,6 +17,12 @@ class AvatarState {
     required this.lastUpdated,
   });
 
+  /// Considers a user truly online only if marked online AND updated within the last 2 minutes.
+  /// Protects against crashes or ungraceful network disconnections.
+  bool get isCurrentlyOnline =>
+      isOnline &&
+      DateTime.now().difference(lastUpdated) < const Duration(minutes: 2);
+
   /// Deserialise from a Firestore document map.
   factory AvatarState.fromMap(Map<String, dynamic> map) {
     return AvatarState(
