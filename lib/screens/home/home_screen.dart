@@ -1,41 +1,24 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/string_utils.dart';
+import '../../models/group.dart';
+import '../../services/auth_service.dart';
+import '../../services/database_service.dart';
 import '../../widgets/grid_background.dart';
 import '../../widgets/particle_text/particle_text_widget.dart';
-import '../office/office_screen.dart';
+import '../group/group_menu_screen.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Data
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _GroupData {
-  const _GroupData(this.name, this.status, this.memberCount, this.accentColor);
-  final String name;
-  final String status;
-  final int    memberCount;
-  final Color  accentColor;
-}
-
-const _kPopularGroups = [
-  _GroupData('The Late Night Crew',  '12 online', 24, NeoColors.accent),
-  _GroupData('Valorant Grinders',    '8 online',  15, NeoColors.secondary),
-  _GroupData('Study Bunker',         '5 online',  31, NeoColors.muted),
-  _GroupData('Weekend Warriors',     '20 online', 40, NeoColors.accent),
-  _GroupData('Chill Vibes Only',     '3 online',  11, NeoColors.secondary),
+const _kPalette = [
+  NeoColors.accent,
+  NeoColors.secondary,
+  NeoColors.muted,
+  NeoColors.accent,
+  NeoColors.muted,
+  NeoColors.secondary,
 ];
 
-const _kRecommendedGroups = [
-  _GroupData('Deep Work Zone',       '2 online',  9,  NeoColors.muted),
-  _GroupData('Movie Night Club',     '6 online',  18, NeoColors.accent),
-  _GroupData('Morning Runners',      '4 online',  22, NeoColors.secondary),
-  _GroupData('Indie Dev Hangout',    '7 online',  13, NeoColors.muted),
-  _GroupData('Book Club',            '1 online',  8,  NeoColors.accent),
-];
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Screen
-// ─────────────────────────────────────────────────────────────────────────────
+Color _colorFor(String name) =>
+    _kPalette[name.codeUnits.fold(0, (a, b) => a + b) % _kPalette.length];
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -46,6 +29,10 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _searchController = TextEditingController();
+  final DatabaseService _db = DatabaseService();
+
+  String get _currentUserId =>
+      AuthService.instance.currentUser?.uid ?? 'demo-user-1';
 
   @override
   void dispose() {
@@ -89,7 +76,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: _HeroHeader(searchController: _searchController),
                 ),
 
-                // ── Popular Groups ─────────────────────────────────────────
+                // ── Popular / Hot Public Groups ────────────────────────────
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 28, 20, 12),
                   sliver: SliverToBoxAdapter(
@@ -100,23 +87,45 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 SliverToBoxAdapter(
-                  child: _GroupRow(groups: _kPopularGroups),
+                  child: StreamBuilder<List<Group>>(
+                    stream: _db.watchPublicGroups(),
+                    builder: (context, snapshot) {
+                      final groups = snapshot.data ?? [];
+                      if (groups.isEmpty) {
+                        return const _EmptyGroupRow(
+                          message: 'NO PUBLIC GROUPS YET',
+                        );
+                      }
+                      return _GroupRow(groups: groups);
+                    },
+                  ),
                 ),
 
                 const SliverToBoxAdapter(child: SizedBox(height: 36)),
 
-                // ── Recommended ────────────────────────────────────────────
+                // ── My Groups / For You ─────────────────────────────────────
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                   sliver: SliverToBoxAdapter(
                     child: _SectionHeading(
-                      label: 'FOR YOU',
-                      title: 'Recommended',
+                      label: 'YOURS',
+                      title: 'My Groups',
                     ),
                   ),
                 ),
                 SliverToBoxAdapter(
-                  child: _GroupRow(groups: _kRecommendedGroups),
+                  child: StreamBuilder<List<Group>>(
+                    stream: _db.watchUserGroups(_currentUserId),
+                    builder: (context, snapshot) {
+                      final groups = snapshot.data ?? [];
+                      if (groups.isEmpty) {
+                        return const _EmptyGroupRow(
+                          message: 'JOIN OR CREATE A GROUP IN THE GROUPS TAB',
+                        );
+                      }
+                      return _GroupRow(groups: groups);
+                    },
+                  ),
                 ),
 
                 // ── Bottom padding ─────────────────────────────────────────
@@ -130,7 +139,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 // Hero header: particle title + search bar
 // ─────────────────────────────────────────────────────────────────────────────
@@ -146,31 +154,28 @@ class _HeroHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Top row: badge + particle title ────────────────────────────
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Rotated sticker badge
               Transform.rotate(
                 angle: -0.06,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color:     NeoColors.accent,
-                    border:    NeoBorder.thick,
+                    color: NeoColors.accent,
+                    border: NeoBorder.thick,
                     boxShadow: NeoShadows.s,
                   ),
                   child: Text(
                     'LIVE',
                     style: NeoTextStyles.label.copyWith(
-                      color:     NeoColors.white,
-                      fontSize:  10,
+                      color: NeoColors.white,
+                      fontSize: 10,
                     ),
                   ),
                 ),
               ),
               const Spacer(),
-              // Notification stub
               _NeoIconButton(
                 icon: Icons.notifications_outlined,
                 onTap: () {},
@@ -184,106 +189,91 @@ class _HeroHeader extends StatelessWidget {
           SizedBox(
             height: 120,
             child: ParticleText(
-              text:           'KOBOTED',
-              fontSize:       64,
-              fontWeight:     FontWeight.w700,
-              color:          NeoColors.ink,
+              text: 'KOBOTED',
+              fontSize: 64,
+              fontWeight: FontWeight.w700,
+              color: NeoColors.ink,
               highlightColor: NeoColors.accent,
-              scatter:        160,
+              scatter: 160,
               gatherDuration: const Duration(milliseconds: 1600),
-              stagger:        const Duration(milliseconds: 380),
-              pointerRepel:   40,
-              repelRadius:    110,
-              idleDrift:      0.6,
-              particleSize:   2.2,
-              glow:           false,
-              trigger:        ParticleTrigger.mount,
+              stagger: const Duration(milliseconds: 380),
+              pointerRepel: 40,
+              repelRadius: 110,
+              idleDrift: 0.6,
+              particleSize: 2.2,
+              glow: false,
+              trigger: ParticleTrigger.mount,
             ),
           ),
 
-          // ── Sub-tagline ────────────────────────────────────────────────
-          Transform.rotate(
-            angle: 0.01,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color:     NeoColors.secondary,
-                border:    NeoBorder.thick,
-                boxShadow: NeoShadows.s,
-              ),
-              child: Text(
-                'YOUR SPATIAL SOCIAL HUB',
-                style: NeoTextStyles.label,
-              ),
-            ),
-          ),
+          const SizedBox(height: 16),
 
-          const SizedBox(height: 20),
-
-          // ── Search bar ─────────────────────────────────────────────────
-          _NeoSearchBar(controller: searchController),
+          _SearchBar(controller: searchController),
         ],
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Neo search bar
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _NeoSearchBar extends StatefulWidget {
-  const _NeoSearchBar({required this.controller});
+class _SearchBar extends StatefulWidget {
+  const _SearchBar({required this.controller});
   final TextEditingController controller;
 
   @override
-  State<_NeoSearchBar> createState() => _NeoSearchBarState();
+  State<_SearchBar> createState() => _SearchBarState();
 }
 
-class _NeoSearchBarState extends State<_NeoSearchBar> {
+class _SearchBarState extends State<_SearchBar> {
   bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
-      decoration: BoxDecoration(
-        color:     _focused ? NeoColors.secondary : NeoColors.white,
-        border:    NeoBorder.thick,
-        boxShadow: _focused ? NeoShadows.m : NeoShadows.s,
-      ),
-      child: Row(
-        children: [
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 14),
-            child: Icon(Icons.search_rounded, color: NeoColors.ink, size: 22),
-          ),
-          Expanded(
-            child: Focus(
-              onFocusChange: (f) => setState(() => _focused = f),
+    return Focus(
+      onFocusChange: (f) => setState(() => _focused = f),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          color: NeoColors.white,
+          border: NeoBorder.thick,
+          boxShadow: _focused ? NeoShadows.m : NeoShadows.s,
+        ),
+        child: Row(
+          children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 14),
+              child: Icon(Icons.search_rounded, color: NeoColors.ink, size: 22),
+            ),
+            Expanded(
               child: TextField(
                 controller: widget.controller,
                 style: NeoTextStyles.body,
-                decoration: const InputDecoration(
-                  hintText:        'SEARCH GROUPS OR FRIENDS…',
-                  border:          InputBorder.none,
-                  enabledBorder:   InputBorder.none,
-                  focusedBorder:   InputBorder.none,
-                  filled:          false,
-                  contentPadding: EdgeInsets.symmetric(vertical: 16),
+                decoration: InputDecoration(
+                  hintText: 'Search groups, rooms, members…',
+                  hintStyle: NeoTextStyles.body.copyWith(
+                    color: NeoColors.ink.withValues(alpha: 0.4),
+                  ),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
                 ),
               ),
             ),
-          ),
-        ],
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: widget.controller,
+              builder: (context, value, _) {
+                if (value.text.isEmpty) return const SizedBox.shrink();
+                return IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 18, color: NeoColors.ink),
+                  onPressed: widget.controller.clear,
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Section heading with label sticker
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _SectionHeading extends StatelessWidget {
   const _SectionHeading({required this.label, required this.title});
@@ -293,52 +283,48 @@ class _SectionHeading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Transform.rotate(
-          angle: -0.04,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color:  NeoColors.muted,
-              border: NeoBorder.thin,
-            ),
-            child: Text(label, style: NeoTextStyles.label.copyWith(fontSize: 10)),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: NeoColors.secondary,
+            border: NeoBorder.thick,
+            boxShadow: NeoShadows.s,
+          ),
+          child: Text(
+            label,
+            style: NeoTextStyles.label.copyWith(fontSize: 10),
           ),
         ),
         const SizedBox(width: 10),
         Text(title, style: NeoTextStyles.h3),
-        const Spacer(),
-        _NeoChip(label: 'SEE ALL', onTap: () {}),
       ],
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Horizontally scrolling group row
-// ─────────────────────────────────────────────────────────────────────────────
-
 class _GroupRow extends StatefulWidget {
   const _GroupRow({required this.groups});
-  final List<_GroupData> groups;
+  final List<Group> groups;
 
   @override
   State<_GroupRow> createState() => _GroupRowState();
 }
 
 class _GroupRowState extends State<_GroupRow> {
-  final _controller = ScrollController();
+  late final ScrollController _controller;
   bool _atEnd = false;
 
   @override
   void initState() {
     super.initState();
-    _controller.addListener(() {
-      final atEnd =
-          _controller.offset >= _controller.position.maxScrollExtent - 8;
-      if (atEnd != _atEnd) setState(() => _atEnd = atEnd);
-    });
+    _controller = ScrollController()..addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    final atEnd = _controller.position.pixels >=
+        _controller.position.maxScrollExtent - 24;
+    if (atEnd != _atEnd) setState(() => _atEnd = atEnd);
   }
 
   @override
@@ -354,24 +340,25 @@ class _GroupRowState extends State<_GroupRow> {
       child: Stack(
         children: [
           ListView.separated(
-            controller:      _controller,
+            controller: _controller,
             scrollDirection: Axis.horizontal,
-            padding:         const EdgeInsets.symmetric(horizontal: 20),
-            itemCount:       widget.groups.length,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: widget.groups.length,
             separatorBuilder: (context, index) => const SizedBox(width: 12),
-            itemBuilder: (context, i) => _GroupCard(data: widget.groups[i]),
+            itemBuilder: (context, i) => _GroupCard(group: widget.groups[i]),
           ),
-
           if (!_atEnd)
             Positioned(
-              right: 0, top: 0, bottom: 0,
+              right: 0,
+              top: 0,
+              bottom: 0,
               width: 48,
               child: IgnorePointer(
                 child: Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.centerLeft,
-                      end:   Alignment.centerRight,
+                      end: Alignment.centerRight,
                       colors: [Colors.transparent, NeoColors.cream],
                     ),
                   ),
@@ -384,13 +371,36 @@ class _GroupRowState extends State<_GroupRow> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Group card — Neo-brutalist style
-// ─────────────────────────────────────────────────────────────────────────────
+class _EmptyGroupRow extends StatelessWidget {
+  const _EmptyGroupRow({required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: NeoColors.white,
+        border: NeoBorder.thick,
+        boxShadow: NeoShadows.s,
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, color: NeoColors.ink),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(message, style: NeoTextStyles.label.copyWith(fontSize: 12)),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _GroupCard extends StatefulWidget {
-  const _GroupCard({required this.data});
-  final _GroupData data;
+  const _GroupCard({required this.group});
+  final Group group;
 
   @override
   State<_GroupCard> createState() => _GroupCardState();
@@ -402,34 +412,41 @@ class _GroupCardState extends State<_GroupCard> {
 
   @override
   Widget build(BuildContext context) {
-    final initials = initialsFor(widget.data.name);
+    final initials = initialsFor(widget.group.name);
+    final accentColor = _colorFor(widget.group.name);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
-      onExit:  (_) => setState(() { _hovered = false; _pressed = false; }),
+      onExit: (_) => setState(() {
+        _hovered = false;
+        _pressed = false;
+      }),
       child: GestureDetector(
-        onTapDown:   (_) => setState(() => _pressed = true),
-        onTapUp:     (_) => setState(() => _pressed = false),
-        onTapCancel: ()  => setState(() => _pressed = false),
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
         onTap: () {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => OfficeScreen(groupName: widget.data.name),
+              builder: (context) => GroupMenuScreen(
+                groupId: widget.group.id,
+                initialGroup: widget.group,
+              ),
             ),
           );
         },
         child: AnimatedContainer(
-          duration:  const Duration(milliseconds: 150),
-          width:     152,
+          duration: const Duration(milliseconds: 150),
+          width: 152,
           transform: _pressed
               ? Matrix4.translationValues(4.0, 4.0, 0)
               : _hovered
                   ? Matrix4.translationValues(-2.0, -2.0, 0)
                   : Matrix4.identity(),
           decoration: BoxDecoration(
-            color:     NeoColors.cream,
-            border:    NeoBorder.thick,
+            color: NeoColors.cream,
+            border: NeoBorder.thick,
             boxShadow: _pressed
                 ? []
                 : _hovered
@@ -441,50 +458,43 @@ class _GroupCardState extends State<_GroupCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Initials block with accent background
                 Container(
-                  width:  46,
+                  width: 46,
                   height: 46,
                   decoration: BoxDecoration(
-                    color:  widget.data.accentColor,
+                    color: accentColor,
                     border: NeoBorder.thick,
                   ),
                   alignment: Alignment.center,
                   child: Text(
                     initials,
                     style: NeoTextStyles.h3.copyWith(
-                      fontSize:   15,
+                      fontSize: 15,
                       letterSpacing: 0.5,
                       color: NeoColors.ink,
                     ),
                   ),
                 ),
-
                 const Spacer(),
-
-                // Name
                 Text(
-                  widget.data.name.toUpperCase(),
-                  maxLines:  2,
-                  overflow:  TextOverflow.ellipsis,
+                  widget.group.name.toUpperCase(),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: NeoTextStyles.body.copyWith(
                     fontSize: 12,
-                    height:   1.25,
+                    height: 1.25,
                     letterSpacing: 0.3,
                   ),
                 ),
-
                 const SizedBox(height: 8),
-
-                // Status row
                 Row(
                   children: [
                     Container(
-                      width:  8,
+                      width: 8,
                       height: 8,
                       decoration: const BoxDecoration(
-                        color:  Color(0xFF00D166),
-                        shape:  BoxShape.circle,
+                        color: Color(0xFF00D166),
+                        shape: BoxShape.circle,
                         border: Border.fromBorderSide(
                           BorderSide(color: NeoColors.ink, width: 1.5),
                         ),
@@ -493,16 +503,16 @@ class _GroupCardState extends State<_GroupCard> {
                     const SizedBox(width: 5),
                     Expanded(
                       child: Text(
-                        widget.data.status.toUpperCase(),
+                        '#${widget.group.joinCode}',
                         style: NeoTextStyles.label.copyWith(
                           fontSize: 9,
-                          letterSpacing: 1.5,
+                          letterSpacing: 1.0,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     Text(
-                      '${widget.data.memberCount}',
+                      '${widget.group.memberIds.length}',
                       style: NeoTextStyles.label.copyWith(fontSize: 9),
                     ),
                     const SizedBox(width: 3),
@@ -518,49 +528,9 @@ class _GroupCardState extends State<_GroupCard> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Reusable small widgets
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _NeoChip extends StatefulWidget {
-  const _NeoChip({required this.label, required this.onTap});
-  final String       label;
-  final VoidCallback onTap;
-
-  @override
-  State<_NeoChip> createState() => _NeoChipState();
-}
-
-class _NeoChipState extends State<_NeoChip> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown:   (_) => setState(() => _pressed = true),
-      onTapUp:     (_) => setState(() => _pressed = false),
-      onTapCancel: ()  => setState(() => _pressed = false),
-      onTap:       widget.onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 100),
-        transform: _pressed
-            ? Matrix4.translationValues(3.0, 3.0, 0)
-            : Matrix4.identity(),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color:     NeoColors.secondary,
-          border:    NeoBorder.thin,
-          boxShadow: _pressed ? [] : NeoShadows.s,
-        ),
-        child: Text(widget.label, style: NeoTextStyles.label.copyWith(fontSize: 10)),
-      ),
-    );
-  }
-}
-
 class _NeoIconButton extends StatefulWidget {
   const _NeoIconButton({required this.icon, required this.onTap});
-  final IconData     icon;
+  final IconData icon;
   final VoidCallback onTap;
 
   @override
@@ -573,23 +543,23 @@ class _NeoIconButtonState extends State<_NeoIconButton> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTapDown:   (_) => setState(() => _pressed = true),
-      onTapUp:     (_) => setState(() => _pressed = false),
-      onTapCancel: ()  => setState(() => _pressed = false),
-      onTap:       widget.onTap,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: widget.onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 100),
+        width: 44,
+        height: 44,
         transform: _pressed
             ? Matrix4.translationValues(3.0, 3.0, 0)
             : Matrix4.identity(),
-        width:  44,
-        height: 44,
         decoration: BoxDecoration(
-          color:     NeoColors.white,
-          border:    NeoBorder.thick,
+          color: NeoColors.white,
+          border: NeoBorder.thick,
           boxShadow: _pressed ? [] : NeoShadows.s,
         ),
-        child: Icon(widget.icon, size: 20, color: NeoColors.ink),
+        child: Icon(widget.icon, color: NeoColors.ink, size: 22),
       ),
     );
   }
