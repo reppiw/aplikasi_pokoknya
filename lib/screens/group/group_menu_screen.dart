@@ -115,6 +115,178 @@ class _GroupMenuScreenState extends State<GroupMenuScreen> {
     }
   }
 
+  Future<void> _togglePrivacy(Group group) async {
+    final nextState = !group.isPrivate;
+    final nextLabel = nextState ? 'PRIVAT' : 'PUBLIK';
+    final desc = nextState
+        ? 'Grup privat hanya bisa dimasuki via kode undangan dan memerlukan persetujuan admin.'
+        : 'Grup publik dapat dilihat dan dimasuki langsung oleh semua pengguna.';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: NeoColors.cream,
+        shape: const RoundedRectangleBorder(
+          side: BorderSide(color: NeoColors.ink, width: 4),
+        ),
+        title: Text('UBAH MENJADI $nextLabel?', style: NeoTextStyles.h3),
+        content: Text(desc, style: NeoTextStyles.body),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('BATAL', style: NeoTextStyles.label),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: NeoColors.secondary,
+              foregroundColor: NeoColors.ink,
+              elevation: 0,
+              side: const BorderSide(color: NeoColors.ink, width: 2),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('UBAH', style: NeoTextStyles.label),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await _db.updateGroupSettings(groupId: group.id, isPrivate: nextState);
+        _showSnackBar('Status grup diubah menjadi $nextLabel.');
+      } catch (e) {
+        _showSnackBar('Gagal mengubah status: $e', isError: true);
+      }
+    }
+  }
+
+  Future<void> _showEditGroupDialog(Group group) async {
+    final nameCtrl = TextEditingController(text: group.name);
+    final descCtrl = TextEditingController(text: group.description);
+    bool isPrivate = group.isPrivate;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: NeoColors.cream,
+          shape: const RoundedRectangleBorder(
+            side: BorderSide(color: NeoColors.ink, width: 4),
+          ),
+          title: Text('EDIT GROUP INFO', style: NeoTextStyles.h3),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('GROUP NAME', style: NeoTextStyles.label.copyWith(fontSize: 11)),
+                const SizedBox(height: 6),
+                Container(
+                  decoration: const BoxDecoration(
+                    color: NeoColors.white,
+                    border: NeoBorder.thin,
+                  ),
+                  child: TextField(
+                    controller: nameCtrl,
+                    style: NeoTextStyles.body,
+                    decoration: const InputDecoration(
+                      contentPadding: EdgeInsets.all(12),
+                      border: InputBorder.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text('DESCRIPTION', style: NeoTextStyles.label.copyWith(fontSize: 11)),
+                const SizedBox(height: 6),
+                Container(
+                  decoration: const BoxDecoration(
+                    color: NeoColors.white,
+                    border: NeoBorder.thin,
+                  ),
+                  child: TextField(
+                    controller: descCtrl,
+                    style: NeoTextStyles.body,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      contentPadding: EdgeInsets.all(12),
+                      border: InputBorder.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                InkWell(
+                  onTap: () => setDialogState(() => isPrivate = !isPrivate),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isPrivate ? NeoColors.accent.withValues(alpha: 0.25) : NeoColors.white,
+                      border: NeoBorder.thin,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(isPrivate ? Icons.lock : Icons.public, color: NeoColors.ink),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(isPrivate ? 'PRIVATE GROUP' : 'PUBLIC GROUP', style: NeoTextStyles.label),
+                              Text(
+                                isPrivate ? 'Hanya bisa join via kode' : 'Bisa dilihat di tab Discover',
+                                style: NeoTextStyles.body.copyWith(fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: isPrivate,
+                          activeThumbColor: NeoColors.accent,
+                          onChanged: (val) => setDialogState(() => isPrivate = val),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('BATAL', style: NeoTextStyles.label),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: NeoColors.accent,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                side: const BorderSide(color: NeoColors.ink, width: 2),
+              ),
+              onPressed: () async {
+                final newName = nameCtrl.text.trim();
+                if (newName.isNotEmpty) {
+                  await _db.updateGroupSettings(
+                    groupId: group.id,
+                    name: newName,
+                    description: descCtrl.text.trim(),
+                    isPrivate: isPrivate,
+                  );
+                  if (ctx.mounted) {
+                    Navigator.pop(ctx);
+                  }
+                  if (mounted) {
+                    _showSnackBar('Informasi grup berhasil diperbarui.');
+                  }
+                }
+              },
+              child: Text('SIMPAN', style: NeoTextStyles.label.copyWith(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<Group?>(
@@ -161,6 +333,14 @@ class _GroupMenuScreenState extends State<GroupMenuScreen> {
             ),
             title: Text('GROUP HUB', style: NeoTextStyles.h3),
             centerTitle: true,
+            actions: [
+              if (isUserAdmin)
+                IconButton(
+                  icon: const Icon(Icons.settings_outlined, color: NeoColors.ink),
+                  tooltip: 'Group Settings',
+                  onPressed: () => _showEditGroupDialog(group),
+                ),
+            ],
             bottom: const PreferredSize(
               preferredSize: Size.fromHeight(4),
               child: Divider(height: 4, thickness: 4, color: NeoColors.ink),
@@ -264,26 +444,33 @@ class _GroupMenuScreenState extends State<GroupMenuScreen> {
                             ],
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: group.isPrivate ? NeoColors.accent.withValues(alpha: 0.3) : NeoColors.cream,
-                            border: NeoBorder.thin,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                group.isPrivate ? Icons.lock_outline : Icons.public,
-                                size: 16,
-                                color: NeoColors.ink,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                group.isPrivate ? 'PRIVATE' : 'PUBLIC',
-                                style: NeoTextStyles.label.copyWith(fontSize: 13),
-                              ),
-                            ],
+                        InkWell(
+                          onTap: isUserAdmin ? () => _togglePrivacy(group) : null,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: group.isPrivate ? NeoColors.accent.withValues(alpha: 0.3) : NeoColors.cream,
+                              border: NeoBorder.thin,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  group.isPrivate ? Icons.lock_outline : Icons.public,
+                                  size: 16,
+                                  color: NeoColors.ink,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  group.isPrivate ? 'PRIVATE' : 'PUBLIC',
+                                  style: NeoTextStyles.label.copyWith(fontSize: 13),
+                                ),
+                                if (isUserAdmin) ...[
+                                  const SizedBox(width: 4),
+                                  const Icon(Icons.swap_horiz, size: 14, color: NeoColors.ink),
+                                ],
+                              ],
+                            ),
                           ),
                         ),
                       ],
