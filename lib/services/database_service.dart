@@ -216,6 +216,28 @@ class DatabaseService {
     });
   }
 
+  /// Update group info and privacy (Public <-> Private).
+  Future<void> updateGroupSettings({
+    required String groupId,
+    String? name,
+    String? description,
+    bool? isPrivate,
+  }) async {
+    final Map<String, dynamic> updates = {};
+    if (name != null && name.trim().isNotEmpty) {
+      updates['name'] = name.trim();
+    }
+    if (description != null) {
+      updates['description'] = description.trim();
+    }
+    if (isPrivate != null) {
+      updates['isPrivate'] = isPrivate;
+    }
+    if (updates.isNotEmpty) {
+      await _groupsCollection().doc(groupId).update(updates);
+    }
+  }
+
   /// Remove/kick a member from the group.
   Future<void> removeMember({
     required String groupId,
@@ -253,5 +275,82 @@ class DatabaseService {
     }
 
     return users;
+  }
+
+  // ── Friends & Users ─────────────────────────────────────────────────────────
+
+  /// Add a friend using their unique [username].
+  Future<({bool success, String message, AppUser? user})> addFriendByUsername({
+    required String currentUserId,
+    required String username,
+  }) async {
+    final cleanUsername = username.trim().toLowerCase();
+    if (cleanUsername.isEmpty) {
+      return (success: false, message: 'Username tidak boleh kosong.', user: null);
+    }
+
+    final usernameDoc = await _firestore.collection('usernames').doc(cleanUsername).get();
+    if (!usernameDoc.exists || usernameDoc.data() == null) {
+      return (success: false, message: 'Pengguna "@$cleanUsername" tidak ditemukan.', user: null);
+    }
+
+    final targetUid = (usernameDoc.data()!['uid'] as String? ?? '').trim();
+    if (targetUid.isEmpty) {
+      return (success: false, message: 'Profil pengguna tidak valid.', user: null);
+    }
+
+    if (targetUid == currentUserId) {
+      return (success: false, message: 'Kamu tidak bisa menambahkan dirimu sendiri.', user: null);
+    }
+
+    // Add target to current user's friendIds list
+    await _firestore.collection('users').doc(currentUserId).set({
+      'friendIds': FieldValue.arrayUnion([targetUid]),
+    }, SetOptions(merge: true));
+
+    final targetProfile = await _firestore.collection('users').doc(targetUid).get();
+    final targetUser = targetProfile.exists && targetProfile.data() != null
+        ? AppUser.fromFirestore(targetUid, targetProfile.data()!)
+        : null;
+
+    final displayName = targetUser?.displayName.isNotEmpty == true
+        ? targetUser!.displayName
+        : '@$cleanUsername';
+
+    return (
+      success: true,
+      message: '$displayName berhasil ditambahkan sebagai teman!',
+      user: targetUser,
+    );
+  }
+
+  /// Remove a friend from the current user's friend list.
+  Future<void> removeFriend({
+    required String currentUserId,
+    required String friendId,
+  }) async {
+    await _firestore.collection('users').doc(currentUserId).update({
+      'friendIds': FieldValue.arrayRemove([friendId]),
+    });
+  }
+
+  /// Watch friends of [currentUserId].
+  Stream<List<AppUser>> watchFriends(String currentUserId) {
+    return _firestore.collection('users').doc(currentUserId).snapshots().asyncMap((snap) async {
+      if (!snap.exists || snap.data() == null) return <AppUser>[];
+      final friendIds = List<String>.from(snap.data()!['friendIds'] ?? []);
+      if (friendIds.isEmpty) return <AppUser>[];
+      return fetchUsers(friendIds);
+    });
+  }
+
+  /// Watch all registered users (excluding current user), useful for discovery.
+  Stream<List<AppUser>> watchAllUsers({String? excludeUserId}) {
+    return _firestore.collection('users').limit(50).snapshots().map((snapshot) {
+      return snapshot.docs
+          .where((d) => excludeUserId == null || d.id != excludeUserId)
+          .map((d) => AppUser.fromFirestore(d.id, d.data()))
+          .toList();
+    });
   }
 }
