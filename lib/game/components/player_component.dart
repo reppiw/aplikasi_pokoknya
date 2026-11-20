@@ -23,7 +23,7 @@ class PlayerComponent extends PositionComponent
 
   static const double kAvatarRadius = 14.0;
   static const double _speed        = 160.0; // px/s
-  static const double _kSyncInterval = 0.2; // 5 Hz update rate
+  static const double _kSyncInterval = 0.2;  // 5 Hz update rate
   static const double _kMinMoveDistanceSq = 16.0; // 4 px threshold
 
   final String username;
@@ -118,7 +118,12 @@ class PlayerComponent extends PositionComponent
     next.x = next.x.clamp(kWallThick + kAvatarRadius, kMapWidth  - kWallThick - kAvatarRadius);
     next.y = next.y.clamp(kWallThick + kAvatarRadius, kMapHeight - kWallThick - kAvatarRadius);
 
-    if (isWalkable(next)) {
+    // Use OfficeMap's instance walkability check (which knows the actual rooms).
+    final map = _map;
+    if (map != null) {
+      if (map.walkable(next)) position = next;
+    } else {
+      // No map yet — allow movement (safe fallback, map loads async).
       position = next;
     }
   }

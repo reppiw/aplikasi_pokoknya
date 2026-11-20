@@ -527,7 +527,7 @@ class _GroupMenuScreenState extends State<GroupMenuScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const RoomEditorScreen(),
+                        builder: (_) => RoomEditorScreen(groupId: group.id),
                       ),
                     );
                   },

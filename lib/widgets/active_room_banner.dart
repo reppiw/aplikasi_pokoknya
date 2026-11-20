@@ -1,22 +1,20 @@
 import 'package:flutter/material.dart';
 import '../core/theme/app_theme.dart';
-import '../../models/room.dart';
+import '../models/room.dart';
 import '../services/room_session_manager.dart';
-import '../../screens/room_editor/room_detail_screen.dart';
+import '../screens/room_editor/room_detail_screen.dart';
 
 class ActiveRoomBanner extends StatelessWidget {
   const ActiveRoomBanner({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // 1. Menggunakan ListenableBuilder karena RoomSessionManager turunan ChangeNotifier
     return ListenableBuilder(
-      listenable: RoomSessionManager(), // Memanggil singleton via factory constructor
+      listenable: RoomSessionManager(),
       builder: (context, child) {
         final sessionManager = RoomSessionManager();
         final activeRoom = sessionManager.activeRoom;
 
-        // Jika tidak ada room aktif, sembunyikan banner
         if (activeRoom == null) {
           return const SizedBox.shrink();
         }
@@ -51,6 +49,10 @@ class ActiveRoomBanner extends StatelessWidget {
                           id: activeRoom.roomId,
                           name: activeRoom.roomName,
                           statusTag: RoomStatusTag.free,
+                          tileX: 1,
+                          tileY: 1,
+                          widthTiles: 14,
+                          heightTiles: 18,
                         ),
                         groupName: activeRoom.groupName,
                       ),

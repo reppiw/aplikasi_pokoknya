@@ -7,6 +7,7 @@ import 'components/player_component.dart';
 import 'components/ghost_component.dart';
 import 'components/joystick_controller.dart';
 import '../models/avatar_state.dart';
+import '../models/room.dart';
 import '../services/room_session_manager.dart';
 
 /// Root Flame game — top-down 2D office.
@@ -14,12 +15,15 @@ import '../services/room_session_manager.dart';
 class OfficeGame extends FlameGame {
   OfficeGame({
     required this.username,
+    required List<Room> rooms,
     this.initialAvatarStates = const [],
     this.initialPosition,
     this.onAvatarStateChanged,
-  }) : super(camera: CameraComponent());
+  })  : _rooms = rooms.isNotEmpty ? rooms : defaultRooms(),
+        super(camera: CameraComponent());
 
   final String username;
+  final List<Room> _rooms;
   final List<AvatarState> initialAvatarStates;
   final Vector2? initialPosition;
 
@@ -43,13 +47,22 @@ class OfficeGame extends FlameGame {
   Future<void> onLoad() async {
     images.prefix = 'assets/';
 
-    // 1. Office map (rooms + walls + labels)
-    final map = OfficeMap(onRoomChanged: _onRoomChanged);
+    // 1. Office map (rooms + walls + labels + furniture)
+    final map = OfficeMap(
+      onRoomChanged: _onRoomChanged,
+      rooms: _rooms,
+    );
     await world.add(map);
 
     // 2. Determine start position:
-    // Prefer explicit initialPosition, then saved position in group state, then default Lounge.
-    Vector2 startPos = initialPosition ?? Vector2(8 * kTileSize, 10 * kTileSize);
+    //    Prefer explicit initialPosition, then saved avatar, then first room centre.
+    final firstRoom = _rooms.first;
+    final defaultStart = Vector2(
+      (firstRoom.tileX + firstRoom.widthTiles / 2) * kTileSize,
+      (firstRoom.tileY + firstRoom.heightTiles / 2) * kTileSize,
+    );
+
+    Vector2 startPos = initialPosition ?? defaultStart;
     final savedSelf =
         initialAvatarStates.where((s) => s.userId == username).firstOrNull;
     if (savedSelf != null && initialPosition == null) {
@@ -65,8 +78,7 @@ class OfficeGame extends FlameGame {
     );
     await world.add(_player);
 
-    // 3. Camera: zoom so ~12 tiles fit across the shorter screen dimension,
-    //    then follow the player smoothly.
+    // 3. Camera: zoom so ~12 tiles fit across the shorter screen dimension.
     const targetTilesAcross = 12.0;
     final shortSide = size.x < size.y ? size.x : size.y;
     final zoom = shortSide / (targetTilesAcross * kTileSize);
@@ -139,12 +151,17 @@ class OfficeGame extends FlameGame {
     }
   }
 
-  String _roomDisplayName(String roomId) =>
-      const {
-        'deep_work': 'Deep Work Zone',
-        'looking_for_games': 'Game Room',
-        'busy': 'Meeting Room',
-        'free': 'Lounge',
-      }[roomId] ??
-      roomId;
+  /// Look up the display name for a room id by searching the loaded rooms list.
+  String _roomDisplayName(String roomId) {
+    for (final r in _rooms) {
+      if (r.id == roomId) return r.name;
+    }
+    // Legacy fallback
+    return const {
+      'deep_work': 'Deep Work Zone',
+      'looking_for_games': 'Game Room',
+      'busy': 'Meeting Room',
+      'free': 'Lounge',
+    }[roomId] ?? roomId;
+  }
 }

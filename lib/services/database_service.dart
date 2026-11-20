@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/avatar_state.dart';
 import '../models/group.dart';
+import '../models/room.dart';
 import '../models/user.dart';
 
 class DatabaseService {
@@ -352,5 +353,63 @@ class DatabaseService {
           .map((d) => AppUser.fromFirestore(d.id, d.data()))
           .toList();
     });
+  }
+
+  // ── Rooms ────────────────────────────────────────────────────────────────────
+
+  CollectionReference<Map<String, dynamic>> _roomsCollection(String groupId) =>
+      _firestore.collection('groups').doc(groupId).collection('rooms');
+
+  /// Watch the live list of rooms for [groupId].
+  /// Falls back to an empty list; callers should supply [defaultRooms()] when empty.
+  Stream<List<Room>> watchGroupRooms(String groupId) {
+    return _roomsCollection(groupId).snapshots().map((snapshot) {
+      if (snapshot.docs.isEmpty) return <Room>[];
+      return snapshot.docs
+          .map((doc) => Room.fromFirestore(doc.id, doc.data()))
+          .toList();
+    });
+  }
+
+  /// Fetch rooms once (non-streaming).
+  Future<List<Room>> fetchGroupRooms(String groupId) async {
+    final snapshot = await _roomsCollection(groupId).get();
+    if (snapshot.docs.isEmpty) return [];
+    return snapshot.docs
+        .map((doc) => Room.fromFirestore(doc.id, doc.data()))
+        .toList();
+  }
+
+  /// Save the entire room list for [groupId].
+  /// Performs a batched write: adds/updates all provided rooms.
+  Future<void> saveGroupRooms(String groupId, List<Room> rooms) async {
+    final batch = _firestore.batch();
+    final col = _roomsCollection(groupId);
+
+    // Delete rooms that are no longer in the list
+    final existing = await col.get();
+    final newIds = rooms.map((r) => r.id).toSet();
+    for (final doc in existing.docs) {
+      if (!newIds.contains(doc.id)) {
+        batch.delete(doc.reference);
+      }
+    }
+
+    // Write/update all current rooms
+    for (final room in rooms) {
+      batch.set(col.doc(room.id), room.toMap());
+    }
+
+    await batch.commit();
+  }
+
+  /// Save or update a single room for [groupId].
+  Future<void> saveRoom(String groupId, Room room) async {
+    await _roomsCollection(groupId).doc(room.id).set(room.toMap());
+  }
+
+  /// Delete a single room by ID.
+  Future<void> deleteRoom(String groupId, String roomId) async {
+    await _roomsCollection(groupId).doc(roomId).delete();
   }
 }

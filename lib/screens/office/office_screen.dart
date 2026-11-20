@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../game/office_game.dart';
+import '../../game/components/office_map.dart';
 import '../../models/avatar_state.dart';
+import '../../models/room.dart';
 import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
 
@@ -29,16 +31,21 @@ class OfficeScreen extends StatefulWidget {
   State<OfficeScreen> createState() => _OfficeScreenState();
 }
 
-class _OfficeScreenState extends State<OfficeScreen> with WidgetsBindingObserver {
-  late final OfficeGame _game;
+class _OfficeScreenState extends State<OfficeScreen>
+    with WidgetsBindingObserver {
+  // Game is nullable until rooms are loaded.
+  OfficeGame? _game;
+  bool _loadingRooms = true;
+
   final List<AvatarState> _avatarStates = [];
   final DatabaseService _databaseService = DatabaseService();
   StreamSubscription<List<AvatarState>>? _avatarSubscription;
+  StreamSubscription<List<Room>>? _roomSubscription;
 
   String get _effectiveGroupId => widget.groupId ?? 'default';
 
-  double _currentX = 8 * 32.0;
-  double _currentY = 10 * 32.0;
+  double _currentX = 8 * kTileSize;
+  double _currentY = 10 * kTileSize;
   String _currentRoomId = 'free';
 
   bool _isSyncing = false;
@@ -48,15 +55,43 @@ class _OfficeScreenState extends State<OfficeScreen> with WidgetsBindingObserver
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _loadRoomsAndStart();
+  }
+
+  Future<void> _loadRoomsAndStart() async {
+    // Fetch rooms once to initialise the game, then subscribe to live updates.
+    List<Room> rooms;
+    try {
+      rooms = await _databaseService.fetchGroupRooms(_effectiveGroupId);
+      if (rooms.isEmpty) rooms = defaultRooms();
+    } catch (_) {
+      rooms = defaultRooms();
+    }
+
+    if (!mounted) return;
+
     final userId = AuthService.instance.currentUser?.uid ?? 'You';
 
-    _game = OfficeGame(
+    final game = OfficeGame(
       username: userId,
+      rooms: rooms,
       initialAvatarStates: _avatarStates,
       onAvatarStateChanged: _onAvatarStateChanged,
     );
 
-    // Initial presence announce
+    setState(() {
+      _game = game;
+      _loadingRooms = false;
+    });
+
+    // Set sensible default start coordinates from the first room.
+    if (rooms.isNotEmpty) {
+      final first = rooms.first;
+      _currentX = (first.tileX + first.widthTiles / 2) * kTileSize;
+      _currentY = (first.tileY + first.heightTiles / 2) * kTileSize;
+      _currentRoomId = first.id;
+    }
+
     _requestSync(isOnline: true);
 
     _avatarSubscription = _databaseService
@@ -66,9 +101,9 @@ class _OfficeScreenState extends State<OfficeScreen> with WidgetsBindingObserver
             _avatarStates
               ..clear()
               ..addAll(states);
-            _game.updateGhosts(states);
+            game.updateGhosts(states);
           },
-          onError: (Object error, StackTrace stackTrace) {
+          onError: (Object error, StackTrace _) {
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Gagal memuat data kantor: $error')),
@@ -126,10 +161,8 @@ class _OfficeScreenState extends State<OfficeScreen> with WidgetsBindingObserver
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached ||
         state == AppLifecycleState.hidden) {
-      // Mark offline when app is minimized or backgrounded
       _saveAvatarState(isOnline: false);
     } else if (state == AppLifecycleState.resumed) {
-      // Mark online when returning to foreground
       _requestSync(isOnline: true);
     }
   }
@@ -138,26 +171,34 @@ class _OfficeScreenState extends State<OfficeScreen> with WidgetsBindingObserver
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _avatarSubscription?.cancel();
-    // Mark user offline upon exiting office
+    _roomSubscription?.cancel();
     _saveAvatarState(isOnline: false);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_loadingRooms) {
+      return const Scaffold(
+        backgroundColor: NeoColors.cream,
+        body: Center(child: CircularProgressIndicator(color: NeoColors.ink)),
+      );
+    }
+
+    final game = _game!;
     return Scaffold(
       backgroundColor: NeoColors.ink,
       body: Stack(
         children: [
           // ── 1. Flame game ─────────────────────────────────────────────────
-          Positioned.fill(child: GameWidget<OfficeGame>(game: _game)),
+          Positioned.fill(child: GameWidget<OfficeGame>(game: game)),
 
           // ── 2. Top bar ────────────────────────────────────────────────────
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            child: _TopBar(game: _game, groupName: widget.groupName),
+            child: _TopBar(game: game, groupName: widget.groupName),
           ),
 
           // ── 3. Room banner (slides in below the top bar when entering a room) ──
@@ -165,7 +206,7 @@ class _OfficeScreenState extends State<OfficeScreen> with WidgetsBindingObserver
             top: 0,
             left: 0,
             right: 0,
-            child: _RoomBanner(game: _game),
+            child: _RoomBanner(game: game),
           ),
         ],
       ),
@@ -256,7 +297,8 @@ class _RoomBannerState extends State<_RoomBanner>
   late final Animation<Offset> _slide;
   String? _roomId;
 
-  static const _roomMeta = {
+  /// Static meta for the original 4 default rooms.
+  static const _defaultMeta = {
     'free': (label: 'LOUNGE', color: Color(0xFFB8E4C9), emoji: '☕'),
     'looking_for_games': (
       label: 'GAME ROOM',
@@ -275,7 +317,7 @@ class _RoomBannerState extends State<_RoomBanner>
       duration: const Duration(milliseconds: 300),
     );
     _slide = Tween<Offset>(
-      begin: const Offset(0, -1), // slides in from above
+      begin: const Offset(0, -1),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _anim, curve: Curves.easeOut));
 
@@ -303,11 +345,11 @@ class _RoomBannerState extends State<_RoomBanner>
   Widget build(BuildContext context) {
     if (_roomId == null) return const SizedBox.shrink();
 
+    // Try the static default map first; for custom rooms show a generic banner.
     final meta =
-        _roomMeta[_roomId] ??
+        _defaultMeta[_roomId] ??
         (label: _roomId!.toUpperCase(), color: NeoColors.muted, emoji: '📍');
 
-    // Measure the top bar height (status bar + ~52px for the bar itself) + 12px breathing room
     final topPad = MediaQuery.of(context).padding.top + 52 + 12;
 
     return SlideTransition(
@@ -315,7 +357,7 @@ class _RoomBannerState extends State<_RoomBanner>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(height: topPad), // push banner below the top bar
+          SizedBox(height: topPad),
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
