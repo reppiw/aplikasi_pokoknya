@@ -16,6 +16,7 @@ class OfficeGame extends FlameGame {
   OfficeGame({
     required this.username,
     required List<Room> rooms,
+    this.groupName,
     this.initialAvatarStates = const [],
     this.initialPosition,
     this.onAvatarStateChanged,
@@ -23,6 +24,7 @@ class OfficeGame extends FlameGame {
         super(camera: CameraComponent());
 
   final String username;
+  final String? groupName;
   final List<Room> _rooms;
   final List<AvatarState> initialAvatarStates;
   final Vector2? initialPosition;
@@ -81,9 +83,10 @@ class OfficeGame extends FlameGame {
     // 3. Camera: zoom so ~12 tiles fit across the shorter screen dimension.
     const targetTilesAcross = 12.0;
     final shortSide = size.x < size.y ? size.x : size.y;
-    final zoom = shortSide / (targetTilesAcross * kTileSize);
+    final effectiveShortSide = shortSide > 0 ? shortSide : 384.0;
+    final zoom = effectiveShortSide / (targetTilesAcross * kTileSize);
     camera.viewfinder.zoom = zoom;
-    camera.follow(_player, maxSpeed: 400 / zoom);
+    camera.follow(_player, maxSpeed: 400 / (zoom > 0 ? zoom : 1.0));
 
     // 4. Joystick in HUD space
     final joystick = JoystickController();
@@ -134,6 +137,18 @@ class OfficeGame extends FlameGame {
     await world.add(ghost);
   }
 
+  @override
+  void onGameResize(Vector2 size) {
+    super.onGameResize(size);
+    if (!isLoaded) return;
+    const targetTilesAcross = 12.0;
+    final shortSide = size.x < size.y ? size.x : size.y;
+    if (shortSide > 0) {
+      final zoom = shortSide / (targetTilesAcross * kTileSize);
+      camera.viewfinder.zoom = zoom;
+    }
+  }
+
   void _onRoomChanged(String? roomId) {
     activeRoomNotifier.value = roomId;
     final sm = RoomSessionManager();
@@ -141,7 +156,7 @@ class OfficeGame extends FlameGame {
       sm.joinRoom(
         roomId: roomId,
         roomName: _roomDisplayName(roomId),
-        groupName: 'office',
+        groupName: groupName ?? 'office',
       );
     } else {
       sm.leaveCurrentRoom();

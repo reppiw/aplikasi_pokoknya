@@ -75,6 +75,7 @@ class _OfficeScreenState extends State<OfficeScreen>
     final game = OfficeGame(
       username: userId,
       rooms: rooms,
+      groupName: widget.groupName,
       initialAvatarStates: _avatarStates,
       onAvatarStateChanged: _onAvatarStateChanged,
     );
@@ -237,18 +238,25 @@ class _TopBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: NeoColors.accent,
-              border: NeoBorder.thin,
-            ),
-            child: Text(
-              groupName?.toUpperCase() ?? 'OFFICE',
-              style: NeoTextStyles.label,
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: const BoxDecoration(
+                  color: NeoColors.accent,
+                  border: NeoBorder.thin,
+                ),
+                child: Text(
+                  groupName?.toUpperCase() ?? 'OFFICE',
+                  style: NeoTextStyles.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ),
           ),
-          const Spacer(),
+          const SizedBox(width: 8),
           GestureDetector(
             onTap: () => Navigator.of(context).maybePop(),
             child: Container(
@@ -370,16 +378,23 @@ class _RoomBannerState extends State<_RoomBanner>
               children: [
                 Text(meta.emoji, style: const TextStyle(fontSize: 24)),
                 const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'YOU ENTERED',
-                      style: NeoTextStyles.label.copyWith(fontSize: 9),
-                    ),
-                    Text(meta.label, style: NeoTextStyles.h3),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'YOU ENTERED',
+                        style: NeoTextStyles.label.copyWith(fontSize: 9),
+                      ),
+                      Text(
+                        meta.label,
+                        style: NeoTextStyles.h3,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
