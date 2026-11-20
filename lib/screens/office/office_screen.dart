@@ -8,6 +8,7 @@ import '../../game/office_game.dart';
 import '../../game/components/office_map.dart';
 import '../../models/avatar_state.dart';
 import '../../models/room.dart';
+import '../../models/user.dart';
 import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
 
@@ -47,6 +48,7 @@ class _OfficeScreenState extends State<OfficeScreen>
   double _currentX = 8 * kTileSize;
   double _currentY = 10 * kTileSize;
   String _currentRoomId = 'free';
+  String _currentUsername = 'You';
 
   bool _isSyncing = false;
   bool _hasPendingSync = false;
@@ -59,24 +61,81 @@ class _OfficeScreenState extends State<OfficeScreen>
   }
 
   Future<void> _loadRoomsAndStart() async {
-    // Fetch rooms once to initialise the game, then subscribe to live updates.
-    List<Room> rooms;
+    final authUser = AuthService.instance.currentUser;
+    final userId = authUser?.uid ?? 'guest';
+
+    // 1. Concurrently fetch rooms, initial avatar states, and user profile
+    List<Room> rooms = defaultRooms();
+    List<AvatarState> initialStates = [];
+    String username = '';
+
     try {
-      rooms = await _databaseService.fetchGroupRooms(_effectiveGroupId);
-      if (rooms.isEmpty) rooms = defaultRooms();
-    } catch (_) {
-      rooms = defaultRooms();
+      final results = await Future.wait([
+        _databaseService.fetchGroupRooms(_effectiveGroupId),
+        _databaseService.fetchGroupAvatarStates(_effectiveGroupId),
+        _databaseService.getUser(userId),
+      ]);
+
+      final fetchedRooms = results[0] as List<Room>;
+      if (fetchedRooms.isNotEmpty) rooms = fetchedRooms;
+
+      initialStates = results[1] as List<AvatarState>;
+
+      final userProfile = results[2] as AppUser?;
+      if (userProfile != null) {
+        if (userProfile.username.isNotEmpty) {
+          username = userProfile.username;
+        } else if (userProfile.displayName.isNotEmpty) {
+          username = userProfile.displayName;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading initial office data: $e');
     }
+
+    if (username.isEmpty) {
+      final dn = authUser?.displayName;
+      final em = authUser?.email;
+      if (dn != null && dn.isNotEmpty) {
+        username = dn;
+      } else if (em != null && em.isNotEmpty) {
+        username = em.split('@').first;
+      } else {
+        username = 'You';
+      }
+    }
+    _currentUsername = username;
+
+    _avatarStates
+      ..clear()
+      ..addAll(initialStates);
 
     if (!mounted) return;
 
-    final userId = AuthService.instance.currentUser?.uid ?? 'You';
+    // 2. Restore spawn position: prefer saved position in this group, then first room center
+    final savedSelf = initialStates.where((s) => s.userId == userId).firstOrNull;
+    Vector2? startPosition;
+
+    if (savedSelf != null && savedSelf.x > 0 && savedSelf.y > 0) {
+      _currentX = savedSelf.x;
+      _currentY = savedSelf.y;
+      _currentRoomId = savedSelf.roomId;
+      startPosition = Vector2(savedSelf.x, savedSelf.y);
+    } else if (rooms.isNotEmpty) {
+      final first = rooms.first;
+      _currentX = (first.tileX + first.widthTiles / 2) * kTileSize;
+      _currentY = (first.tileY + first.heightTiles / 2) * kTileSize;
+      _currentRoomId = first.id;
+      startPosition = Vector2(_currentX, _currentY);
+    }
 
     final game = OfficeGame(
-      username: userId,
+      userId: userId,
+      username: _currentUsername,
       rooms: rooms,
       groupName: widget.groupName,
       initialAvatarStates: _avatarStates,
+      initialPosition: startPosition,
       onAvatarStateChanged: _onAvatarStateChanged,
     );
 
@@ -85,16 +144,10 @@ class _OfficeScreenState extends State<OfficeScreen>
       _loadingRooms = false;
     });
 
-    // Set sensible default start coordinates from the first room.
-    if (rooms.isNotEmpty) {
-      final first = rooms.first;
-      _currentX = (first.tileX + first.widthTiles / 2) * kTileSize;
-      _currentY = (first.tileY + first.heightTiles / 2) * kTileSize;
-      _currentRoomId = first.id;
-    }
-
+    // 3. Sync presence now that position is correctly restored
     _requestSync(isOnline: true);
 
+    // 4. Start live subscription for other players' ghosts
     _avatarSubscription = _databaseService
         .watchGroupAvatarStates(_effectiveGroupId)
         .listen(
@@ -128,6 +181,7 @@ class _OfficeScreenState extends State<OfficeScreen>
 
     final state = AvatarState(
       userId: userId,
+      username: _currentUsername,
       x: _currentX,
       y: _currentY,
       roomId: _currentRoomId,

@@ -14,6 +14,7 @@ import '../services/room_session_manager.dart';
 /// Mounted inside OfficeScreen via GameWidget.
 class OfficeGame extends FlameGame {
   OfficeGame({
+    required this.userId,
     required this.username,
     required List<Room> rooms,
     this.groupName,
@@ -23,6 +24,7 @@ class OfficeGame extends FlameGame {
   })  : _rooms = rooms.isNotEmpty ? rooms : defaultRooms(),
         super(camera: CameraComponent());
 
+  final String userId;
   final String username;
   final String? groupName;
   final List<Room> _rooms;
@@ -66,7 +68,7 @@ class OfficeGame extends FlameGame {
 
     Vector2 startPos = initialPosition ?? defaultStart;
     final savedSelf =
-        initialAvatarStates.where((s) => s.userId == username).firstOrNull;
+        initialAvatarStates.where((s) => s.userId == userId).firstOrNull;
     if (savedSelf != null && initialPosition == null) {
       startPos = Vector2(savedSelf.x, savedSelf.y);
     }
@@ -112,7 +114,7 @@ class OfficeGame extends FlameGame {
       return;
     }
     for (final state in states) {
-      if (state.userId == username) continue;
+      if (state.userId == userId) continue;
       final existing = _ghosts[state.userId];
       if (existing != null) {
         existing.updateState(state);
@@ -131,7 +133,7 @@ class OfficeGame extends FlameGame {
   // ── Private ────────────────────────────────────────────────────────────────
 
   Future<void> _spawnGhost(AvatarState state) async {
-    if (state.userId == username) return;
+    if (state.userId == userId) return;
     final ghost = GhostComponent(state: state);
     _ghosts[state.userId] = ghost;
     await world.add(ghost);

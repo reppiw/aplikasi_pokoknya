@@ -47,8 +47,11 @@ class GhostComponent extends PositionComponent {
     );
     add(_circle);
 
+    final displayName =
+        _state.username.isNotEmpty ? _state.username : _state.userId;
+
     _label = TextComponent(
-      text: _state.userId,
+      text: displayName,
       anchor: Anchor.bottomCenter,
       position: Vector2(PlayerComponent.kAvatarRadius, -4),
       textRenderer: TextPaint(
@@ -68,6 +71,8 @@ class GhostComponent extends PositionComponent {
   /// Called by OfficeGame when a fresh AvatarState arrives for this user.
   void updateState(AvatarState newState) {
     _state = newState;
+    _label.text =
+        newState.username.isNotEmpty ? newState.username : newState.userId;
     _targetPosition = Vector2(newState.x, newState.y);
     final color = _colorFor(newState.userId);
     _circle.paint.color =

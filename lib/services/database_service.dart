@@ -251,6 +251,15 @@ class DatabaseService {
     });
   }
 
+  /// Fetch a single user's profile by [userId].
+  Future<AppUser?> getUser(String userId) async {
+    final cleanId = userId.trim();
+    if (cleanId.isEmpty) return null;
+    final doc = await _firestore.collection('users').doc(cleanId).get();
+    if (!doc.exists || doc.data() == null) return null;
+    return AppUser.fromFirestore(doc.id, doc.data()!);
+  }
+
   /// Helper to fetch user profiles for a list of [userIds].
   Future<List<AppUser>> fetchUsers(List<String> userIds) async {
     if (userIds.isEmpty) return [];

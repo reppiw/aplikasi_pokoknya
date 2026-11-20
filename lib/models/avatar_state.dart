@@ -2,6 +2,7 @@
 /// to spawn ghost avatars for other users in the Flame office.
 class AvatarState {
   final String userId;
+  final String username;
   final double x;
   final double y;
   final String roomId;
@@ -10,6 +11,7 @@ class AvatarState {
 
   const AvatarState({
     required this.userId,
+    this.username = '',
     required this.x,
     required this.y,
     required this.roomId,
@@ -25,8 +27,10 @@ class AvatarState {
 
   /// Deserialise from a Firestore document map.
   factory AvatarState.fromMap(Map<String, dynamic> map) {
+    final uid = map['userId'] as String? ?? '';
     return AvatarState(
-      userId: map['userId'] as String,
+      userId: uid,
+      username: map['username'] as String? ?? (uid.isNotEmpty ? uid : 'Guest'),
       x: (map['x'] as num).toDouble(),
       y: (map['y'] as num).toDouble(),
       roomId: map['roomId'] as String? ?? '',
@@ -40,6 +44,7 @@ class AvatarState {
   /// Serialise to a Firestore document map.
   Map<String, dynamic> toMap() => {
         'userId': userId,
+        'username': username,
         'x': x,
         'y': y,
         'roomId': roomId,
@@ -48,6 +53,8 @@ class AvatarState {
       };
 
   AvatarState copyWith({
+    String? userId,
+    String? username,
     double? x,
     double? y,
     String? roomId,
@@ -55,7 +62,8 @@ class AvatarState {
     DateTime? lastUpdated,
   }) {
     return AvatarState(
-      userId: userId,
+      userId: userId ?? this.userId,
+      username: username ?? this.username,
       x: x ?? this.x,
       y: y ?? this.y,
       roomId: roomId ?? this.roomId,
