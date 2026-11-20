@@ -43,6 +43,8 @@ class _RoomEditorScreenState extends State<RoomEditorScreen> {
   // Drag tracking (for tile snapping while dragging)
   double _dragAccumX = 0;
   double _dragAccumY = 0;
+  double _furnDragAccumX = 0;
+  double _furnDragAccumY = 0;
 
   static const double _gridWidth = kMapCols * kTileSize;  // 32 * 32 = 1024
   static const double _gridHeight = kMapRows * kTileSize; // 40 * 32 = 1280
@@ -496,15 +498,15 @@ class _RoomEditorScreenState extends State<RoomEditorScreen> {
   void _onFurnitureDragUpdate(Room room, FurnitureItem item, DragUpdateDetails details) {
     if (_mode != _EditorMode.edit) return;
     final scale = _transformCtrl.value.getMaxScaleOnAxis();
-    _dragAccumX += details.delta.dx / scale;
-    _dragAccumY += details.delta.dy / scale;
+    _furnDragAccumX += details.delta.dx / scale;
+    _furnDragAccumY += details.delta.dy / scale;
 
-    final tileShiftX = (_dragAccumX / kTileSize).truncate();
-    final tileShiftY = (_dragAccumY / kTileSize).truncate();
+    final tileShiftX = (_furnDragAccumX / kTileSize).truncate();
+    final tileShiftY = (_furnDragAccumY / kTileSize).truncate();
 
     if (tileShiftX != 0 || tileShiftY != 0) {
-      _dragAccumX -= tileShiftX * kTileSize;
-      _dragAccumY -= tileShiftY * kTileSize;
+      _furnDragAccumX -= tileShiftX * kTileSize;
+      _furnDragAccumY -= tileShiftY * kTileSize;
 
       final maxX = max(0.0, room.widthTiles - item.type.defaultWidthTiles);
       final maxY = max(0.0, room.heightTiles - item.type.defaultHeightTiles);
@@ -732,17 +734,13 @@ class _RoomEditorScreenState extends State<RoomEditorScreen> {
       width: rw,
       height: rh,
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: () {
           setState(() {
             _selectedRoomId = room.id;
             _selectedFurnitureId = null;
           });
         },
-        onPanStart: (_) {
-          _dragAccumX = 0;
-          _dragAccumY = 0;
-        },
-        onPanUpdate: (d) => _onRoomDragUpdate(room, d),
         child: Container(
           decoration: BoxDecoration(
             color: Color(room.colorHex),
@@ -757,26 +755,53 @@ class _RoomEditorScreenState extends State<RoomEditorScreen> {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              // Room name header banner
+              // Room name header banner - DRAG HANDLE FOR MOVING THE ROOM
               Positioned(
                 top: 4,
                 left: 8,
                 right: 8,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: isSelected ? NeoColors.accent : NeoColors.white.withValues(alpha: 0.85),
-                    border: NeoBorder.thin,
-                  ),
-                  child: Text(
-                    room.name.toUpperCase(),
-                    style: NeoTextStyles.label.copyWith(
-                      fontSize: 10,
-                      color: isSelected ? Colors.white : NeoColors.ink,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onPanStart: (_) {
+                    setState(() {
+                      _selectedRoomId = room.id;
+                      _selectedFurnitureId = null;
+                    });
+                    _dragAccumX = 0;
+                    _dragAccumY = 0;
+                  },
+                  onPanUpdate: (d) => _onRoomDragUpdate(room, d),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: isSelected ? NeoColors.accent : NeoColors.white.withValues(alpha: 0.9),
+                      border: NeoBorder.thin,
+                      boxShadow: isSelected ? NeoShadows.s : null,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.drag_indicator,
+                          size: 13,
+                          color: isSelected ? Colors.white : NeoColors.ink,
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            room.name.toUpperCase(),
+                            style: NeoTextStyles.label.copyWith(
+                              fontSize: 10,
+                              color: isSelected ? Colors.white : NeoColors.ink,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -834,29 +859,41 @@ class _RoomEditorScreenState extends State<RoomEditorScreen> {
           });
         },
         onPanStart: (_) {
-          _dragAccumX = 0;
-          _dragAccumY = 0;
+          setState(() {
+            _selectedRoomId = room.id;
+            _selectedFurnitureId = item.id;
+          });
+          _furnDragAccumX = 0;
+          _furnDragAccumY = 0;
         },
         onPanUpdate: (d) => _onFurnitureDragUpdate(room, item, d),
         child: Container(
           decoration: BoxDecoration(
-            color: Color(item.colorHex ?? item.type.defaultColorHex).withValues(alpha: 0.8),
+            color: Color(item.colorHex ?? item.type.defaultColorHex).withValues(alpha: 0.9),
             border: Border.all(
-              color: isSelected ? Colors.blue : NeoColors.ink,
+              color: isSelected ? NeoColors.accent : NeoColors.ink,
               width: isSelected ? 3 : 1.5,
             ),
             borderRadius: BorderRadius.circular(4),
+            boxShadow: isSelected ? NeoShadows.s : null,
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(item.type.emoji, style: TextStyle(fontSize: min(20.0, fh * 0.5))),
               if (fh > 40 && fw > 40)
-                Text(
-                  item.type.label,
-                  style: NeoTextStyles.label.copyWith(fontSize: 8, color: NeoColors.ink),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: Text(
+                    item.type.label,
+                    style: NeoTextStyles.label.copyWith(
+                      fontSize: 8,
+                      color: isSelected ? NeoColors.accent : NeoColors.ink,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
             ],
           ),
