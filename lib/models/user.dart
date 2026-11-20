@@ -5,6 +5,7 @@ class AppUser {
   final String avatarUrl;
   final String bio;
   final String email;
+  final List<String> friendIds;
 
   const AppUser({
     required this.id,
@@ -13,6 +14,7 @@ class AppUser {
     this.avatarUrl = '',
     this.bio = '',
     this.email = '',
+    this.friendIds = const [],
   });
 
   factory AppUser.fromFirestore(String uid, Map<String, dynamic> data) {
@@ -23,6 +25,7 @@ class AppUser {
       avatarUrl: (data['photoUrl'] as String? ?? '').trim(),
       bio: (data['bio'] as String? ?? '').trim(),
       email: (data['email'] as String? ?? '').trim(),
+      friendIds: List<String>.from(data['friendIds'] ?? []),
     );
   }
 
@@ -32,6 +35,7 @@ class AppUser {
         'photoUrl': avatarUrl,
         'bio': bio,
         'email': email,
+        'friendIds': friendIds,
       };
 
   AppUser copyWith({
@@ -40,6 +44,7 @@ class AppUser {
     String? avatarUrl,
     String? bio,
     String? email,
+    List<String>? friendIds,
   }) {
     return AppUser(
       id: id,
@@ -48,6 +53,7 @@ class AppUser {
       avatarUrl: avatarUrl ?? this.avatarUrl,
       bio: bio ?? this.bio,
       email: email ?? this.email,
+      friendIds: friendIds ?? this.friendIds,
     );
   }
 }
