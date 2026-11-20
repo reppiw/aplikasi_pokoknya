@@ -48,7 +48,6 @@ class ActiveRoomBanner extends StatelessWidget {
                         room: Room(
                           id: activeRoom.roomId,
                           name: activeRoom.roomName,
-                          statusTag: RoomStatusTag.free,
                           tileX: 1,
                           tileY: 1,
                           widthTiles: 14,

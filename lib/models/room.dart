@@ -1,49 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'furniture.dart';
 
-// ── Room Status Tag ───────────────────────────────────────────────────────────
-
-enum RoomStatusTag {
-  free,
-  lookingForGames,
-  busy,
-  deepWork,
-  custom;
-
-  String get label => switch (this) {
-        free => 'Lounge',
-        lookingForGames => 'Game Room',
-        busy => 'Meeting Room',
-        deepWork => 'Deep Work',
-        custom => 'Custom',
-      };
-
-  String get emoji => switch (this) {
-        free => '☕',
-        lookingForGames => '🎮',
-        busy => '📋',
-        deepWork => '🎧',
-        custom => '📍',
-      };
-
-  /// The legacy string ID used in Firestore avatar states and office_map room IDs.
-  String get legacyId => switch (this) {
-        free => 'free',
-        lookingForGames => 'looking_for_games',
-        busy => 'busy',
-        deepWork => 'deep_work',
-        custom => 'custom',
-      };
-
-  static RoomStatusTag fromLegacyId(String id) => switch (id) {
-        'free' => RoomStatusTag.free,
-        'looking_for_games' => RoomStatusTag.lookingForGames,
-        'busy' => RoomStatusTag.busy,
-        'deep_work' => RoomStatusTag.deepWork,
-        _ => RoomStatusTag.custom,
-      };
-}
-
 // ── Room ─────────────────────────────────────────────────────────────────────
 
 /// A room definition used both for Firestore persistence and
@@ -54,7 +11,6 @@ enum RoomStatusTag {
 class Room {
   final String id;
   final String name;
-  final RoomStatusTag statusTag;
 
   /// Left edge of the room in tile units (column index).
   final double tileX;
@@ -74,7 +30,6 @@ class Room {
   const Room({
     required this.id,
     required this.name,
-    required this.statusTag,
     required this.tileX,
     required this.tileY,
     required this.widthTiles,
@@ -88,7 +43,6 @@ class Room {
   Map<String, dynamic> toMap() => {
         'id': id,
         'name': name,
-        'statusTag': statusTag.name,
         'tileX': tileX,
         'tileY': tileY,
         'widthTiles': widthTiles,
@@ -109,10 +63,6 @@ class Room {
     return Room(
       id: docId,
       name: map['name'] as String? ?? 'Room',
-      statusTag: RoomStatusTag.values.firstWhere(
-        (t) => t.name == (map['statusTag'] as String? ?? ''),
-        orElse: () => RoomStatusTag.custom,
-      ),
       tileX: (map['tileX'] as num?)?.toDouble() ?? 1,
       tileY: (map['tileY'] as num?)?.toDouble() ?? 1,
       widthTiles: (map['widthTiles'] as num?)?.toDouble() ?? 14,
@@ -129,7 +79,6 @@ class Room {
   Room copyWith({
     String? id,
     String? name,
-    RoomStatusTag? statusTag,
     double? tileX,
     double? tileY,
     double? widthTiles,
@@ -140,7 +89,6 @@ class Room {
       Room(
         id: id ?? this.id,
         name: name ?? this.name,
-        statusTag: statusTag ?? this.statusTag,
         tileX: tileX ?? this.tileX,
         tileY: tileY ?? this.tileY,
         widthTiles: widthTiles ?? this.widthTiles,
@@ -158,7 +106,6 @@ List<Room> defaultRooms() => [
       const Room(
         id: 'free',
         name: 'Lounge',
-        statusTag: RoomStatusTag.free,
         tileX: 1,
         tileY: 1,
         widthTiles: 14,
@@ -169,7 +116,6 @@ List<Room> defaultRooms() => [
       const Room(
         id: 'looking_for_games',
         name: 'Game Room',
-        statusTag: RoomStatusTag.lookingForGames,
         tileX: 17,
         tileY: 1,
         widthTiles: 14,
@@ -180,7 +126,6 @@ List<Room> defaultRooms() => [
       const Room(
         id: 'busy',
         name: 'Meeting Room',
-        statusTag: RoomStatusTag.busy,
         tileX: 1,
         tileY: 21,
         widthTiles: 14,
@@ -191,7 +136,6 @@ List<Room> defaultRooms() => [
       const Room(
         id: 'deep_work',
         name: 'Deep Work',
-        statusTag: RoomStatusTag.deepWork,
         tileX: 17,
         tileY: 21,
         widthTiles: 14,
