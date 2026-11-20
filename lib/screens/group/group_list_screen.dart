@@ -1,26 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/string_utils.dart';
+import '../../models/group.dart';
+import '../../services/auth_service.dart';
+import '../../services/database_service.dart';
 import '../../widgets/active_room_banner.dart';
 import '../../widgets/grid_background.dart';
 import '../../widgets/neo_pressable.dart';
-import '../../screens/office/office_screen.dart';
-
-class _GroupItem {
-  const _GroupItem({
-    required this.name,
-    required this.status,
-    required this.memberCount,
-    required this.isJoined,
-    required this.accentColor,
-  });
-
-  final String name;
-  final String status;
-  final int    memberCount;
-  final bool   isJoined;
-  final Color  accentColor;
-}
+import 'group_menu_screen.dart';
 
 const _kPalette = [
   NeoColors.accent,
@@ -34,10 +21,6 @@ const _kPalette = [
 Color _colorFor(String name) =>
     _kPalette[name.codeUnits.fold(0, (a, b) => a + b) % _kPalette.length];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Screen
-// ─────────────────────────────────────────────────────────────────────────────
-
 class GroupListScreen extends StatefulWidget {
   const GroupListScreen({super.key});
 
@@ -47,29 +30,22 @@ class GroupListScreen extends StatefulWidget {
 
 class _GroupListScreenState extends State<GroupListScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final DatabaseService _db = DatabaseService();
 
-  final List<_GroupItem> _allGroups = [
-    const _GroupItem(
-      name: 'The Late Night Crew',  status: '12 online', memberCount: 24, isJoined: true,  accentColor: NeoColors.accent),
-    const _GroupItem(
-      name: 'Valorant Grinders',    status: '8 online',  memberCount: 15, isJoined: true,  accentColor: NeoColors.secondary),
-    const _GroupItem(
-      name: 'Study Bunker',         status: '5 online',  memberCount: 31, isJoined: false, accentColor: NeoColors.muted),
-    const _GroupItem(
-      name: 'Weekend Warriors',     status: '20 online', memberCount: 40, isJoined: true,  accentColor: NeoColors.accent),
-    const _GroupItem(
-      name: 'Deep Work Zone',       status: '2 online',  memberCount: 9,  isJoined: false, accentColor: NeoColors.muted),
-    const _GroupItem(
-      name: 'Movie Night Club',     status: '6 online',  memberCount: 18, isJoined: true,  accentColor: NeoColors.secondary),
-  ];
+  String get _currentUserId =>
+      AuthService.instance.currentUser?.uid ?? 'demo-user-1';
 
-  late List<_GroupItem> _filteredGroups;
+  String _searchQuery = '';
+  int _tabIndex = 0; // 0 = My Groups, 1 = Explore Public
 
   @override
   void initState() {
     super.initState();
-    _filteredGroups = _allGroups;
-    _searchController.addListener(_onSearchChanged);
+    _searchController.addListener(() {
+      setState(() {
+        _searchQuery = _searchController.text.trim().toLowerCase();
+      });
+    });
   }
 
   @override
@@ -78,98 +54,6 @@ class _GroupListScreenState extends State<GroupListScreen> {
     super.dispose();
   }
 
-  void _onSearchChanged() {
-    final query = _searchController.text.trim().toLowerCase();
-    setState(() {
-      _filteredGroups = _allGroups
-          .where((g) => g.name.toLowerCase().contains(query))
-          .toList();
-    });
-  }
-
-  Future<void> _createGroup() async {
-    final controller = TextEditingController();
-    final result = await _showNeoDialog(
-      context:   context,
-      title:     'CREATE GROUP',
-      hint:      'Group name…',
-      action:    'CREATE',
-      controller: controller,
-    );
-
-    if (result != null && result.isNotEmpty) {
-      setState(() {
-        _allGroups.insert(
-          0,
-          _GroupItem(
-            name:        result,
-            status:      '1 online',
-            memberCount: 1,
-            isJoined:    true,
-            accentColor: _colorFor(result),
-          ),
-        );
-        _onSearchChanged();
-      });
-    }
-  }
-
-  Future<void> _joinGroup() async {
-    final controller = TextEditingController();
-    final result = await _showNeoDialog(
-      context: context,
-      title: 'JOIN GROUP',
-      hint: 'Enter group name or code…',
-      action: 'JOIN',
-      controller: controller,
-    );
-
-    if (result != null && result.isNotEmpty) {
-      final query = result.trim().toLowerCase();
-
-      // Cari apakah grup dengan nama tersebut sudah ada di daftar
-      final idx = _allGroups.indexWhere(
-            (g) => g.name.toLowerCase() == query,
-      );
-
-      setState(() {
-        if (idx >= 0) {
-          final g = _allGroups[idx];
-          if (g.isJoined) {
-            // Jika user ternyata sudah bergabung di grup tersebut
-            _showSnackBar('KAMU SUDAH BERGABUNG DI GRUP INI!', isError: true);
-            return;
-          }
-
-          // Perbarui status grup yang ada menjadi isJoined: true
-          _allGroups[idx] = _GroupItem(
-            name: g.name,
-            status: g.status,
-            memberCount: g.memberCount + 1,
-            isJoined: true,
-            accentColor: g.accentColor,
-          );
-          _showSnackBar('BERHASIL BERGABUNG KE ${g.name.toUpperCase()}!');
-        } else {
-          // Jika grup tidak ditemukan di list lokal, masukkan sebagai grup baru yang di-join
-          _allGroups.insert(
-            0,
-            _GroupItem(
-              name: result.toUpperCase(),
-              status: '1 online',
-              memberCount: 2,
-              isJoined: true,
-              accentColor: _colorFor(result),
-            ),
-          );
-          _showSnackBar('BERHASIL BERGABUNG VIA KODE: $result!');
-        }
-        _onSearchChanged();
-      });
-    }
-  }
-
-  // Helper untuk menampilkan SnackBar Neobrutalism
   void _showSnackBar(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -186,19 +70,85 @@ class _GroupListScreenState extends State<GroupListScreen> {
     );
   }
 
+  Future<void> _createGroup() async {
+    final controller = TextEditingController();
+    final result = await _showNeoDialog(
+      context: context,
+      title: 'CREATE GROUP',
+      hint: 'Group name…',
+      action: 'CREATE',
+      controller: controller,
+    );
+
+    if (result != null && result.isNotEmpty && mounted) {
+      try {
+        final group = await _db.createGroup(
+          name: result,
+          creatorId: _currentUserId,
+        );
+        _showSnackBar('Grup "${group.name}" dibuat! Kode: ${group.joinCode}');
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => GroupMenuScreen(
+                groupId: group.id,
+                initialGroup: group,
+              ),
+            ),
+          );
+        }
+      } catch (e) {
+        _showSnackBar('Gagal membuat grup: $e', isError: true);
+      }
+    }
+  }
+
+  Future<void> _joinGroup() async {
+    final controller = TextEditingController();
+    final result = await _showNeoDialog(
+      context: context,
+      title: 'JOIN GROUP',
+      hint: 'Enter 6-char group code…',
+      action: 'JOIN',
+      controller: controller,
+    );
+
+    if (result != null && result.isNotEmpty && mounted) {
+      try {
+        final res = await _db.joinGroupByCode(
+          code: result,
+          userId: _currentUserId,
+        );
+        _showSnackBar(res.message, isError: !res.success);
+
+        if (res.success && res.group != null && !res.group!.isPrivate && mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => GroupMenuScreen(
+                groupId: res.group!.id,
+                initialGroup: res.group,
+              ),
+            ),
+          );
+        }
+      } catch (e) {
+        _showSnackBar('Gagal bergabung: $e', isError: true);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // Background image
         Positioned.fill(
           child: Image.asset('assets/Homepage_Background.jpg', fit: BoxFit.cover),
         ),
-        // Cream overlay
         Positioned.fill(
           child: ColoredBox(color: NeoColors.cream.withValues(alpha: 0.88)),
         ),
-        // Grid texture
         Positioned.fill(
           child: const GridBackground(alpha: 0.05),
         ),
@@ -207,55 +157,120 @@ class _GroupListScreenState extends State<GroupListScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
               const ActiveRoomBanner(),
 
               // ── Header ───────────────────────────────────────────────────
               _GroupsHeader(
                 searchController: _searchController,
-                onCreateGroup:    _createGroup,
-                onJoinGroup:      _joinGroup,
+                onCreateGroup: _createGroup,
+                onJoinGroup: _joinGroup,
               ),
 
-              // ── Section label ─────────────────────────────────────────────
+              // ── Tab selector ──────────────────────────────────────────────
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
                 child: Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color:  NeoColors.secondary,
-                        border: NeoBorder.thick,
-                        boxShadow: NeoShadows.s,
-                      ),
-                      child: Text(
-                        'LATEST',
-                        style: NeoTextStyles.label.copyWith(fontSize: 10),
-                      ),
+                    _FilterTab(
+                      label: 'MY GROUPS',
+                      active: _tabIndex == 0,
+                      onTap: () => setState(() => _tabIndex = 0),
                     ),
-                    const SizedBox(width: 12),
-                    Text('Groups', style: NeoTextStyles.h3),
+                    const SizedBox(width: 10),
+                    _FilterTab(
+                      label: 'DISCOVER',
+                      active: _tabIndex == 1,
+                      onTap: () => setState(() => _tabIndex = 1),
+                    ),
                   ],
                 ),
               ),
 
-              // ── Group list ───────────────────────────────────────────────
+              // ── Groups Stream ─────────────────────────────────────────────
               Expanded(
-                child: _filteredGroups.isEmpty
-                    ? _EmptyState()
-                    : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
-                        itemCount: _filteredGroups.length,
-                        separatorBuilder: (context, index) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) =>
-                            _GroupListTile(group: _filteredGroups[index]),
-                      ),
+                child: StreamBuilder<List<Group>>(
+                  stream: _tabIndex == 0
+                      ? _db.watchUserGroups(_currentUserId)
+                      : _db.watchPublicGroups(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting &&
+                        !snapshot.hasData) {
+                      return const Center(
+                        child: CircularProgressIndicator(color: NeoColors.ink),
+                      );
+                    }
+
+                    final groups = snapshot.data ?? [];
+                    final filtered = _searchQuery.isEmpty
+                        ? groups
+                        : groups
+                            .where((g) =>
+                                g.name.toLowerCase().contains(_searchQuery) ||
+                                g.joinCode.toLowerCase().contains(_searchQuery))
+                            .toList();
+
+                    if (filtered.isEmpty) {
+                      return _EmptyState(
+                        message: _tabIndex == 0
+                            ? 'BELUM BERGABUNG DI GRUP MANAPUN'
+                            : 'TIDAK ADA GRUP DITEMUKAN',
+                      );
+                    }
+
+                    return ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
+                      itemCount: filtered.length,
+                      separatorBuilder: (context, index) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final group = filtered[index];
+                        return _GroupListTile(
+                          group: group,
+                          currentUserId: _currentUserId,
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Filter Tab
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _FilterTab extends StatelessWidget {
+  const _FilterTab({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: active ? NeoColors.secondary : NeoColors.white,
+          border: NeoBorder.thick,
+          boxShadow: active ? NeoShadows.s : [],
+        ),
+        child: Text(
+          label,
+          style: NeoTextStyles.label.copyWith(fontSize: 12),
+        ),
+      ),
     );
   }
 }
@@ -272,8 +287,8 @@ class _GroupsHeader extends StatefulWidget {
   });
 
   final TextEditingController searchController;
-  final VoidCallback          onCreateGroup;
-  final VoidCallback          onJoinGroup;
+  final VoidCallback onCreateGroup;
+  final VoidCallback onJoinGroup;
 
   @override
   State<_GroupsHeader> createState() => _GroupsHeaderState();
@@ -285,16 +300,15 @@ class _GroupsHeaderState extends State<_GroupsHeader> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
       decoration: const BoxDecoration(
-        color:  NeoColors.cream,
+        color: NeoColors.cream,
         border: Border(bottom: BorderSide(color: NeoColors.ink, width: 4)),
         boxShadow: [BoxShadow(color: NeoColors.ink, offset: Offset(0, 4))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Title row
           Row(
             children: [
               Transform.rotate(
@@ -302,7 +316,7 @@ class _GroupsHeaderState extends State<_GroupsHeader> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color:  NeoColors.muted,
+                    color: NeoColors.muted,
                     border: NeoBorder.thin,
                   ),
                   child: Text('SOCIAL', style: NeoTextStyles.label.copyWith(fontSize: 9)),
@@ -310,47 +324,44 @@ class _GroupsHeaderState extends State<_GroupsHeader> {
               ),
               const SizedBox(width: 10),
               Text('Groups', style: NeoTextStyles.h2),
-
-              const Spacer(),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
 
           // Search bar
           AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             decoration: BoxDecoration(
-              color:     _searchFocused ? NeoColors.secondary : NeoColors.white,
-              border:    NeoBorder.thick,
-              boxShadow: _searchFocused ? NeoShadows.m : NeoShadows.s,
+              color: NeoColors.white,
+              border: NeoBorder.thick,
+              boxShadow: _searchFocused ? NeoShadows.s : [],
             ),
-            child: Row(
-              children: [
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 14),
-                  child: Icon(Icons.search_rounded, color: NeoColors.ink, size: 22),
-                ),
-                Expanded(
-                  child: Focus(
-                    onFocusChange: (f) => setState(() => _searchFocused = f),
-                    child: TextField(
-                      controller: widget.searchController,
-                      style:      NeoTextStyles.body,
-                      decoration: const InputDecoration(
-                        hintText:       'SEARCH GROUPS…',
-                        border:         InputBorder.none,
-                        enabledBorder:  InputBorder.none,
-                        focusedBorder:  InputBorder.none,
-                        filled:         false,
-                        contentPadding: EdgeInsets.symmetric(vertical: 16),
-                      ),
-                    ),
+            child: Focus(
+              onFocusChange: (focused) => setState(() => _searchFocused = focused),
+              child: TextField(
+                controller: widget.searchController,
+                style: NeoTextStyles.body,
+                decoration: InputDecoration(
+                  hintText: 'Search groups or code…',
+                  hintStyle: NeoTextStyles.body.copyWith(
+                    color: NeoColors.ink.withValues(alpha: 0.4),
                   ),
+                  prefixIcon: const Icon(Icons.search_rounded, color: NeoColors.ink, size: 22),
+                  suffixIcon: widget.searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear_rounded, color: NeoColors.ink, size: 18),
+                          onPressed: () => widget.searchController.clear(),
+                        )
+                      : null,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  filled: false,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
-              ],
+              ),
             ),
           ),
-
           const SizedBox(height: 14),
 
           // Action buttons
@@ -358,19 +369,19 @@ class _GroupsHeaderState extends State<_GroupsHeader> {
             children: [
               Expanded(
                 child: _NeoButton(
-                  label:   'CREATE GROUP',
-                  color:   NeoColors.secondary,
-                  icon:    Icons.group_add_rounded,
-                  onTap:   widget.onCreateGroup,
+                  label: 'CREATE GROUP',
+                  color: NeoColors.accent,
+                  icon: Icons.add_rounded,
+                  onTap: widget.onCreateGroup,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _NeoButton(
-                  label:   'JOIN GROUP',
-                  color:   NeoColors.muted,
-                  icon:    Icons.meeting_room_rounded,
-                  onTap:   widget.onJoinGroup,
+                  label: 'JOIN VIA CODE',
+                  color: NeoColors.secondary,
+                  icon: Icons.vpn_key_outlined,
+                  onTap: widget.onJoinGroup,
                 ),
               ),
             ],
@@ -386,19 +397,29 @@ class _GroupsHeaderState extends State<_GroupsHeader> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _GroupListTile extends StatelessWidget {
-  const _GroupListTile({required this.group});
-  final _GroupItem group;
+  const _GroupListTile({
+    required this.group,
+    required this.currentUserId,
+  });
+
+  final Group group;
+  final String currentUserId;
 
   @override
   Widget build(BuildContext context) {
     final initials = initialsFor(group.name);
+    final isJoined = group.isMember(currentUserId);
+    final accentColor = _colorFor(group.name);
 
     return NeoPressable(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => OfficeScreen(groupName: group.name),
+            builder: (_) => GroupMenuScreen(
+              groupId: group.id,
+              initialGroup: group,
+            ),
           ),
         );
       },
@@ -409,18 +430,17 @@ class _GroupListTile extends StatelessWidget {
             : Matrix4.identity(),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color:     NeoColors.cream,
-          border:    NeoBorder.thick,
+          color: NeoColors.white,
+          border: NeoBorder.thick,
           boxShadow: pressed ? [] : NeoShadows.m,
         ),
         child: Row(
           children: [
-            // Initials avatar
             Container(
-              width:  52,
+              width: 52,
               height: 52,
               decoration: BoxDecoration(
-                color:  group.accentColor,
+                color: accentColor,
                 border: NeoBorder.thick,
               ),
               alignment: Alignment.center,
@@ -429,10 +449,8 @@ class _GroupListTile extends StatelessWidget {
                 style: NeoTextStyles.h3.copyWith(fontSize: 16),
               ),
             ),
-
             const SizedBox(width: 14),
 
-            // Text content
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -442,20 +460,22 @@ class _GroupListTile extends StatelessWidget {
                       Expanded(
                         child: Text(
                           group.name.toUpperCase(),
-                          style: NeoTextStyles.body.copyWith(fontSize: 14),
+                          style: NeoTextStyles.bodyLarge.copyWith(fontSize: 15),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (group.isJoined)
+                      if (isJoined)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color:  NeoColors.secondary,
+                            color: NeoColors.secondary,
                             border: NeoBorder.thin,
                           ),
                           child: Text(
-                            'JOINED',
+                            group.isOwner(currentUserId)
+                                ? 'OWNER'
+                                : (group.isAdmin(currentUserId) ? 'ADMIN' : 'JOINED'),
                             style: NeoTextStyles.label.copyWith(fontSize: 9),
                           ),
                         ),
@@ -465,39 +485,35 @@ class _GroupListTile extends StatelessWidget {
                   Row(
                     children: [
                       Container(
-                        width:  8, height: 8,
-                        decoration: const BoxDecoration(
-                          color:  Color(0xFF00D166),
-                          shape:  BoxShape.circle,
-                          border: Border.fromBorderSide(
-                            BorderSide(color: NeoColors.ink, width: 1.5),
-                          ),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: NeoColors.cream,
+                          border: NeoBorder.thin,
+                        ),
+                        child: Text(
+                          '#${group.joinCode}',
+                          style: NeoTextStyles.label.copyWith(fontSize: 9),
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        group.status.toUpperCase(),
-                        style: NeoTextStyles.label.copyWith(fontSize: 9),
-                      ),
-                      const SizedBox(width: 14),
-                      const Icon(Icons.people_outline_rounded, size: 12, color: NeoColors.ink),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.people_outline_rounded, size: 14, color: NeoColors.ink),
                       const SizedBox(width: 4),
                       Text(
-                        '${group.memberCount} MEMBERS',
-                        style: NeoTextStyles.label.copyWith(fontSize: 9),
+                        '${group.memberIds.length} MEMBERS',
+                        style: NeoTextStyles.label.copyWith(fontSize: 10),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
+            const SizedBox(width: 10),
 
-            // Chevron
             Container(
-              width:  32,
+              width: 32,
               height: 32,
               decoration: const BoxDecoration(
-                color:  NeoColors.ink,
+                color: NeoColors.ink,
                 border: NeoBorder.thin,
               ),
               child: const Icon(Icons.arrow_forward_rounded, color: NeoColors.white, size: 16),
@@ -521,9 +537,9 @@ class _NeoButton extends StatelessWidget {
     required this.onTap,
   });
 
-  final String       label;
-  final Color        color;
-  final IconData     icon;
+  final String label;
+  final Color color;
+  final IconData icon;
   final VoidCallback onTap;
 
   @override
@@ -533,22 +549,22 @@ class _NeoButton extends StatelessWidget {
       child: (pressed) => AnimatedContainer(
         duration: const Duration(milliseconds: 100),
         transform: pressed
-            ? Matrix4.translationValues(4.0, 4.0, 0)
+            ? Matrix4.translationValues(2.0, 2.0, 0)
             : Matrix4.identity(),
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color:     color,
-          border:    NeoBorder.thick,
-          boxShadow: pressed ? [] : NeoShadows.m,
+          color: color,
+          border: NeoBorder.thick,
+          boxShadow: pressed ? [] : NeoShadows.s,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 18, color: NeoColors.ink),
+            Icon(icon, size: 16, color: NeoColors.ink),
             const SizedBox(width: 8),
             Text(
               label,
-              style: NeoTextStyles.button.copyWith(fontSize: 12),
+              style: NeoTextStyles.label.copyWith(fontSize: 11),
             ),
           ],
         ),
@@ -562,15 +578,18 @@ class _NeoButton extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _EmptyState extends StatelessWidget {
+  const _EmptyState({this.message = 'NO GROUPS FOUND'});
+  final String message;
+
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Container(
-        margin:  const EdgeInsets.all(40),
-        padding: const EdgeInsets.all(32),
+        margin: const EdgeInsets.all(40),
+        padding: const EdgeInsets.all(28),
         decoration: BoxDecoration(
-          color:     NeoColors.cream,
-          border:    NeoBorder.thick,
+          color: NeoColors.white,
+          border: NeoBorder.thick,
           boxShadow: NeoShadows.m,
         ),
         child: Column(
@@ -579,13 +598,17 @@ class _EmptyState extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color:  NeoColors.muted,
+                color: NeoColors.muted,
                 border: NeoBorder.thick,
               ),
-              child: const Icon(Icons.search_off_rounded, size: 32, color: NeoColors.ink),
+              child: const Icon(Icons.group_off_outlined, size: 32, color: NeoColors.ink),
             ),
             const SizedBox(height: 16),
-            Text('NO GROUPS FOUND', style: NeoTextStyles.h3.copyWith(fontSize: 18)),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: NeoTextStyles.h3.copyWith(fontSize: 16),
+            ),
           ],
         ),
       ),
@@ -594,18 +617,14 @@ class _EmptyState extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Grid texture painter
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Neo dialog helper
 // ─────────────────────────────────────────────────────────────────────────────
 
 Future<String?> _showNeoDialog({
-  required BuildContext       context,
-  required String             title,
-  required String             hint,
-  required String             action,
+  required BuildContext context,
+  required String title,
+  required String hint,
+  required String action,
   required TextEditingController controller,
 }) {
   return showDialog<String>(
@@ -615,8 +634,8 @@ Future<String?> _showNeoDialog({
         child: Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color:     NeoColors.cream,
-            border:    NeoBorder.thick,
+            color: NeoColors.cream,
+            border: NeoBorder.thick,
             boxShadow: NeoShadows.l,
           ),
           child: Column(
@@ -627,21 +646,22 @@ Future<String?> _showNeoDialog({
               const SizedBox(height: 16),
               Container(
                 decoration: BoxDecoration(
-                  color:  NeoColors.white,
+                  color: NeoColors.white,
                   border: NeoBorder.thick,
                 ),
                 child: TextField(
                   controller: controller,
-                  style:      NeoTextStyles.body,
-                  autofocus:  true,
+                  style: NeoTextStyles.body,
+                  autofocus: true,
                   decoration: InputDecoration(
-                    hintText:       hint,
-                    border:         InputBorder.none,
-                    enabledBorder:  InputBorder.none,
-                    focusedBorder:  InputBorder.none,
-                    filled:         false,
+                    hintText: hint,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    filled: false,
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 14,
+                      horizontal: 16,
+                      vertical: 14,
                     ),
                   ),
                 ),
@@ -653,7 +673,7 @@ Future<String?> _showNeoDialog({
                     child: _NeoButton(
                       label: 'CANCEL',
                       color: NeoColors.white,
-                      icon:  Icons.close_rounded,
+                      icon: Icons.close_rounded,
                       onTap: () => Navigator.pop(ctx),
                     ),
                   ),
@@ -662,7 +682,7 @@ Future<String?> _showNeoDialog({
                     child: _NeoButton(
                       label: action,
                       color: NeoColors.accent,
-                      icon:  Icons.check_rounded,
+                      icon: Icons.check_rounded,
                       onTap: () {
                         final val = controller.text.trim();
                         if (val.isNotEmpty) Navigator.pop(ctx, val);
