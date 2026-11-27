@@ -113,11 +113,24 @@ class _OfficeScreenState extends State<OfficeScreen>
 
     if (!mounted) return;
 
-    // 2. Restore spawn position: prefer saved position in this group, then first room center
+    // 2. Restore spawn position: prefer saved position if still inside a room, else first room center
     final savedSelf = initialStates.where((s) => s.userId == userId).firstOrNull;
     Vector2? startPosition;
 
+    bool isSavedInsideAnyRoom = false;
     if (savedSelf != null && savedSelf.x > 0 && savedSelf.y > 0) {
+      final tx = savedSelf.x / kTileSize;
+      final ty = savedSelf.y / kTileSize;
+      isSavedInsideAnyRoom = rooms.any(
+        (r) =>
+            tx >= r.tileX &&
+            tx <= r.tileX + r.widthTiles &&
+            ty >= r.tileY &&
+            ty <= r.tileY + r.heightTiles,
+      );
+    }
+
+    if (savedSelf != null && isSavedInsideAnyRoom) {
       _currentX = savedSelf.x;
       _currentY = savedSelf.y;
       _currentRoomId = savedSelf.roomId;
