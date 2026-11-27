@@ -55,21 +55,17 @@ class _RoomDef {
       worldRect.contains(Offset(pos.x, pos.y));
 }
 
-// ── Walkability (now stateless — takes room list at call site) ────────────────
+// ── Walkability ───────────────────────────────────────────────────────────────
 
-/// Returns true if [pos] is inside any room (world pixels) or a doorway gap.
-/// [rooms] is derived from the same list passed to [OfficeMap].
-bool _isWalkableInternal(Vector2 pos, {List<_RoomDef>? rooms, List<Rect>? doorways}) {
-  if (rooms != null) {
-    for (final r in rooms) {
-      if (r.containsWorld(pos)) return true;
-    }
+/// Returns true if [pos] is inside the interior map bounds and not blocked by any wall rect.
+bool _isWalkableInternal(Vector2 pos, {required List<Rect> wallTileRects}) {
+  final tx = pos.x / kTileSize;
+  final ty = pos.y / kTileSize;
+  if (tx < 1.0 || tx >= kMapCols - 1.0 || ty < 1.0 || ty >= kMapRows - 1.0) {
+    return false;
   }
-  if (doorways != null) {
-    final tp = Offset(pos.x / kTileSize, pos.y / kTileSize);
-    return doorways.any((d) => d.contains(tp));
-  }
-  return false;
+  final tp = Offset(tx, ty);
+  return !wallTileRects.any((w) => w.contains(tp));
 }
 
 // ── Components ────────────────────────────────────────────────────────────────
@@ -84,23 +80,27 @@ class _WallHitbox extends PositionComponent with CollisionCallbacks {
 /// The full office map: floors, walls, labels, furniture — driven by [Room] data.
 ///
 /// Pass [rooms] from Firestore (or [defaultRooms()] as fallback).
-/// Doorways are computed automatically between adjacent rooms.
+/// Doorways and per-room perimeter walls are computed automatically.
 class OfficeMap extends Component with HasGameReference<OfficeGame> {
   OfficeMap({
     required this.onRoomChanged,
     required List<Room> rooms,
-  }) : _roomDefs = rooms.map((r) => _RoomDef(room: r)).toList();
+  }) : _roomDefs = rooms.map((r) => _RoomDef(room: r)).toList() {
+    _doorways = _computeDoorways();
+    _wallTileRects = _computeWallTileRects();
+  }
 
   final void Function(String? roomId) onRoomChanged;
   final List<_RoomDef> _roomDefs;
   late final List<Rect> _doorways;
+  late final List<Rect> _wallTileRects;
 
   String? _currentRoomId;
 
   // ── Walkability (called by PlayerComponent) ─────────────────────────────────
 
   bool walkable(Vector2 pos) =>
-      _isWalkableInternal(pos, rooms: _roomDefs, doorways: _doorways);
+      _isWalkableInternal(pos, wallTileRects: _wallTileRects);
 
   // ── Room detection ────────────────────────────────────────────────────────
 
@@ -123,8 +123,6 @@ class OfficeMap extends Component with HasGameReference<OfficeGame> {
 
   @override
   Future<void> onLoad() async {
-    _doorways = _computeDoorways();
-
     // ── Floor fills ──────────────────────────────────────────────────────────
     for (final room in _roomDefs) {
       final wr = room.worldRect;
@@ -173,55 +171,88 @@ class OfficeMap extends Component with HasGameReference<OfficeGame> {
 
   // ── Doorway computation ────────────────────────────────────────────────────
 
-  /// Computes doorway Rects (in tile coordinates) between all adjacent rooms.
-  /// A doorway spans 2 tiles wide/tall at the midpoint of the shared edge.
+  /// Computes doorway Rects (in tile coordinates) between adjacent rooms,
+  /// plus a corridor-facing doorway for any isolated room so all rooms are reachable.
   List<Rect> _computeDoorways() {
     final doorways = <Rect>[];
     final rects = _roomDefs.map((r) => r.tileRect).toList();
+    final connected = List<bool>.filled(rects.length, false);
 
     for (var i = 0; i < rects.length; i++) {
       for (var j = i + 1; j < rects.length; j++) {
         final a = rects[i];
         final b = rects[j];
 
-        // Shared vertical edge (rooms side-by-side horizontally)
-        if ((a.right - b.left).abs() < 2 || (b.right - a.left).abs() < 2) {
-          final sharedX = (a.right - b.left).abs() < 2 ? a.right : b.right;
+        // Shared / near-adjacent vertical edge (rooms side-by-side horizontally)
+        final horizGap = a.right <= b.left ? b.left - a.right : (b.right <= a.left ? a.left - b.right : double.infinity);
+        if (horizGap <= 2.5) {
+          final minRight = a.right <= b.left ? a.right : b.right;
+          final maxLeft = a.right <= b.left ? b.left : a.left;
           final overlapTop = a.top > b.top ? a.top : b.top;
           final overlapBottom = a.bottom < b.bottom ? a.bottom : b.bottom;
           if (overlapBottom > overlapTop + 2) {
             final midY = (overlapTop + overlapBottom) / 2;
             doorways.add(Rect.fromLTRB(
-              sharedX - 1, midY - 1, sharedX + 1, midY + 1,
+              minRight - 1.0,
+              midY - 1.0,
+              maxLeft + 1.0,
+              midY + 1.0,
             ));
+            connected[i] = true;
+            connected[j] = true;
           }
         }
 
-        // Shared horizontal edge (rooms stacked vertically)
-        if ((a.bottom - b.top).abs() < 2 || (b.bottom - a.top).abs() < 2) {
-          final sharedY = (a.bottom - b.top).abs() < 2 ? a.bottom : b.bottom;
+        // Shared / near-adjacent horizontal edge (rooms stacked vertically)
+        final vertGap = a.bottom <= b.top ? b.top - a.bottom : (b.bottom <= a.top ? a.top - b.bottom : double.infinity);
+        if (vertGap <= 2.5) {
+          final minBottom = a.bottom <= b.top ? a.bottom : b.bottom;
+          final maxTop = a.bottom <= b.top ? b.top : a.top;
           final overlapLeft = a.left > b.left ? a.left : b.left;
           final overlapRight = a.right < b.right ? a.right : b.right;
           if (overlapRight > overlapLeft + 2) {
             final midX = (overlapLeft + overlapRight) / 2;
             doorways.add(Rect.fromLTRB(
-              midX - 1, sharedY - 1, midX + 1, sharedY + 1,
+              midX - 1.0,
+              minBottom - 1.0,
+              midX + 1.0,
+              maxTop + 1.0,
             ));
+            connected[i] = true;
+            connected[j] = true;
           }
         }
       }
     }
 
-    // If we got no computed doorways (e.g. rooms don't touch), fall back to
-    // the classic 4-room doorways for backwards compatibility.
-    if (doorways.isEmpty) {
-      return const <Rect>[
-        Rect.fromLTRB(15, 9, 17, 11),
-        Rect.fromLTRB(15, 29, 17, 31),
-        Rect.fromLTRB(14, 19, 16, 21),
-        Rect.fromLTRB(24, 19, 26, 21),
-      ];
+    // Ensure any isolated room (separated by a wider corridor) gets a doorway
+    // facing open interior space (toward the map center).
+    const mapCenterX = kMapCols / 2;
+    const mapCenterY = kMapRows / 2;
+    for (var i = 0; i < rects.length; i++) {
+      if (connected[i]) continue;
+      final r = rects[i];
+      final dx = mapCenterX - r.center.dx;
+      final dy = mapCenterY - r.center.dy;
+      if (dx.abs() >= dy.abs()) {
+        if (dx >= 0 && r.right < kMapCols - 2) {
+          doorways.add(Rect.fromLTRB(r.right - 0.5, r.center.dy - 1.0, r.right + 1.5, r.center.dy + 1.0));
+        } else if (r.left > 2) {
+          doorways.add(Rect.fromLTRB(r.left - 1.5, r.center.dy - 1.0, r.left + 0.5, r.center.dy + 1.0));
+        } else if (r.bottom < kMapRows - 2) {
+          doorways.add(Rect.fromLTRB(r.center.dx - 1.0, r.bottom - 0.5, r.center.dx + 1.0, r.bottom + 1.5));
+        }
+      } else {
+        if (dy >= 0 && r.bottom < kMapRows - 2) {
+          doorways.add(Rect.fromLTRB(r.center.dx - 1.0, r.bottom - 0.5, r.center.dx + 1.0, r.bottom + 1.5));
+        } else if (r.top > 2) {
+          doorways.add(Rect.fromLTRB(r.center.dx - 1.0, r.top - 1.5, r.center.dx + 1.0, r.top + 0.5));
+        } else if (r.right < kMapCols - 2) {
+          doorways.add(Rect.fromLTRB(r.right - 0.5, r.center.dy - 1.0, r.right + 1.5, r.center.dy + 1.0));
+        }
+      }
     }
+
     return doorways;
   }
 
@@ -259,98 +290,100 @@ class OfficeMap extends Component with HasGameReference<OfficeGame> {
     _addRect(x: mw - t, y: 0, w: t, h: mh);   // Right
   }
 
-  void _addDividers() {
-    final mw = kMapWidth;
-    final mh = kMapHeight;
-    const t = kWallThick;
+  /// Builds per-room perimeter wall rects (1 tile thick outside each room),
+  /// subtracting doorway openings and other rooms' interior floors so walls
+  /// never slice through adjacent or differently sized rooms.
+  List<Rect> _computeWallTileRects() {
+    final walls = <Rect>[];
+    final roomRects = _roomDefs.map((r) => r.tileRect).toList();
+    final cutouts = <Rect>[..._doorways, ...roomRects];
 
-    // Build a set of unique room-boundary X and Y lines (in tile coords),
-    // then draw walls along those lines with gaps for doorways.
-    //
-    // For the classic 4-room layout and any 2×2 grid this correctly places
-    // vertical and horizontal dividers.
+    for (final r in roomRects) {
+      final candidates = <(bool isVertical, Rect strip)>[
+        (true, Rect.fromLTRB(r.left - 1, r.top - 1, r.left, r.bottom + 1)),       // Left
+        (true, Rect.fromLTRB(r.right, r.top - 1, r.right + 1, r.bottom + 1)),     // Right
+        (false, Rect.fromLTRB(r.left - 1, r.top - 1, r.right + 1, r.top)),        // Top
+        (false, Rect.fromLTRB(r.left - 1, r.bottom, r.right + 1, r.bottom + 1)),  // Bottom
+      ];
 
-    // Collect unique interior vertical edges (right edges of rooms that are
-    // not the map outer boundary).
-    final vEdges = <double>{};
-    final hEdges = <double>{};
-    for (final r in _roomDefs) {
-      final tr = r.tileRect;
-      if (tr.right < kMapCols - 1) vEdges.add(tr.right);
-      if (tr.bottom < kMapRows - 1) hEdges.add(tr.bottom);
+      for (final (isVertical, strip) in candidates) {
+        // Clamp to interior map bounds (outer walls are drawn by _addWalls)
+        final clamped = Rect.fromLTRB(
+          strip.left.clamp(1.0, kMapCols - 1.0),
+          strip.top.clamp(1.0, kMapRows - 1.0),
+          strip.right.clamp(1.0, kMapCols - 1.0),
+          strip.bottom.clamp(1.0, kMapRows - 1.0),
+        );
+        if (clamped.width <= 0 || clamped.height <= 0) continue;
+
+        walls.addAll(_subtractCutouts(clamped, cutouts, isVertical: isVertical));
+      }
     }
 
-    // Draw each vertical divider, with gaps where doorways are.
-    for (final vx in vEdges) {
-      final worldX = vx * kTileSize;
-      // Find doorways that cross this vertical line.
-      final hGaps = _doorways
-          .where((d) => (d.left * kTileSize <= worldX) &&
-              (d.right * kTileSize >= worldX + t))
-          .map((d) => (top: d.top * kTileSize, bottom: d.bottom * kTileSize))
-          .toList();
-
-      _drawSegmentedLine(
-        isVertical: true,
-        axis: worldX,
-        startPerp: t,
-        endPerp: mh - t,
-        thickness: t,
-        gaps: hGaps,
-      );
-    }
-
-    // Draw each horizontal divider.
-    for (final hy in hEdges) {
-      final worldY = hy * kTileSize;
-      final vGaps = _doorways
-          .where((d) => (d.top * kTileSize <= worldY) &&
-              (d.bottom * kTileSize >= worldY + t))
-          .map((d) => (top: d.left * kTileSize, bottom: d.right * kTileSize))
-          .toList();
-
-      _drawSegmentedLine(
-        isVertical: false,
-        axis: worldY,
-        startPerp: t,
-        endPerp: mw - t,
-        thickness: t,
-        gaps: vGaps,
-      );
-    }
+    return walls;
   }
 
-  void _drawSegmentedLine({
+  List<Rect> _subtractCutouts(
+    Rect strip,
+    List<Rect> cutouts, {
     required bool isVertical,
-    required double axis,
-    required double startPerp,
-    required double endPerp,
-    required double thickness,
-    required List<({double top, double bottom})> gaps,
   }) {
-    // Sort gaps by start position
-    final sortedGaps = List.of(gaps)
-      ..sort((a, b) => a.top.compareTo(b.top));
-
-    var cursor = startPerp;
-    for (final gap in sortedGaps) {
-      if (gap.top > cursor) {
-        final len = gap.top - cursor;
-        if (isVertical) {
-          _addRect(x: axis, y: cursor, w: thickness, h: len);
-        } else {
-          _addRect(x: cursor, y: axis, w: len, h: thickness);
-        }
+    final gaps = <({double start, double end})>[];
+    for (final c in cutouts) {
+      if (c.right <= strip.left ||
+          c.left >= strip.right ||
+          c.bottom <= strip.top ||
+          c.top >= strip.bottom) {
+        continue;
       }
-      cursor = gap.bottom;
-    }
-    if (cursor < endPerp) {
-      final len = endPerp - cursor;
       if (isVertical) {
-        _addRect(x: axis, y: cursor, w: thickness, h: len);
+        gaps.add((
+          start: c.top > strip.top ? c.top : strip.top,
+          end: c.bottom < strip.bottom ? c.bottom : strip.bottom,
+        ));
       } else {
-        _addRect(x: cursor, y: axis, w: len, h: thickness);
+        gaps.add((
+          start: c.left > strip.left ? c.left : strip.left,
+          end: c.right < strip.right ? c.right : strip.right,
+        ));
       }
+    }
+
+    if (gaps.isEmpty) return [strip];
+    gaps.sort((a, b) => a.start.compareTo(b.start));
+
+    final result = <Rect>[];
+    var cursor = isVertical ? strip.top : strip.left;
+    final limit = isVertical ? strip.bottom : strip.right;
+
+    for (final g in gaps) {
+      if (g.start > cursor) {
+        result.add(
+          isVertical
+              ? Rect.fromLTRB(strip.left, cursor, strip.right, g.start)
+              : Rect.fromLTRB(cursor, strip.top, g.start, strip.bottom),
+        );
+      }
+      if (g.end > cursor) cursor = g.end;
+    }
+    if (cursor < limit) {
+      result.add(
+        isVertical
+            ? Rect.fromLTRB(strip.left, cursor, strip.right, limit)
+            : Rect.fromLTRB(cursor, strip.top, limit, strip.bottom),
+      );
+    }
+    return result;
+  }
+
+  void _addDividers() {
+    for (final w in _wallTileRects) {
+      _addRect(
+        x: w.left * kTileSize,
+        y: w.top * kTileSize,
+        w: w.width * kTileSize,
+        h: w.height * kTileSize,
+      );
     }
   }
 
