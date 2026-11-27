@@ -36,12 +36,12 @@ class _OfficeScreenState extends State<OfficeScreen>
     with WidgetsBindingObserver {
   // Game is nullable until rooms are loaded.
   OfficeGame? _game;
+  List<Room> _rooms = const [];
   bool _loadingRooms = true;
 
   final List<AvatarState> _avatarStates = [];
   final DatabaseService _databaseService = DatabaseService();
   StreamSubscription<List<AvatarState>>? _avatarSubscription;
-  StreamSubscription<List<Room>>? _roomSubscription;
 
   String get _effectiveGroupId => widget.groupId ?? 'default';
 
@@ -52,6 +52,7 @@ class _OfficeScreenState extends State<OfficeScreen>
 
   bool _isSyncing = false;
   bool _hasPendingSync = false;
+  bool _pendingOnlineState = true;
 
   @override
   void initState() {
@@ -140,6 +141,7 @@ class _OfficeScreenState extends State<OfficeScreen>
     );
 
     setState(() {
+      _rooms = rooms;
       _game = game;
       _loadingRooms = false;
     });
@@ -199,6 +201,7 @@ class _OfficeScreenState extends State<OfficeScreen>
   void _requestSync({required bool isOnline}) {
     if (_isSyncing) {
       _hasPendingSync = true;
+      _pendingOnlineState = isOnline;
       return;
     }
     _isSyncing = true;
@@ -206,7 +209,7 @@ class _OfficeScreenState extends State<OfficeScreen>
       _isSyncing = false;
       if (_hasPendingSync && mounted) {
         _hasPendingSync = false;
-        _requestSync(isOnline: true);
+        _requestSync(isOnline: _pendingOnlineState);
       }
     });
   }
@@ -216,7 +219,7 @@ class _OfficeScreenState extends State<OfficeScreen>
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached ||
         state == AppLifecycleState.hidden) {
-      _saveAvatarState(isOnline: false);
+      _requestSync(isOnline: false);
     } else if (state == AppLifecycleState.resumed) {
       _requestSync(isOnline: true);
     }
@@ -226,7 +229,6 @@ class _OfficeScreenState extends State<OfficeScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _avatarSubscription?.cancel();
-    _roomSubscription?.cancel();
     _saveAvatarState(isOnline: false);
     super.dispose();
   }
@@ -261,7 +263,7 @@ class _OfficeScreenState extends State<OfficeScreen>
             top: 0,
             left: 0,
             right: 0,
-            child: _RoomBanner(game: game),
+            child: _RoomBanner(game: game, rooms: _rooms),
           ),
         ],
       ),
@@ -345,9 +347,10 @@ class _TopBar extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _RoomBanner extends StatefulWidget {
-  const _RoomBanner({required this.game});
+  const _RoomBanner({required this.game, required this.rooms});
 
   final OfficeGame game;
+  final List<Room> rooms;
 
   @override
   State<_RoomBanner> createState() => _RoomBannerState();
@@ -394,6 +397,7 @@ class _RoomBannerState extends State<_RoomBanner>
   }
 
   void _onRoomChanged() {
+    if (!mounted) return;
     final roomId = widget.game.activeRoomNotifier.value;
     setState(() => _roomId = roomId);
     if (roomId != null) {
@@ -407,10 +411,16 @@ class _RoomBannerState extends State<_RoomBanner>
   Widget build(BuildContext context) {
     if (_roomId == null) return const SizedBox.shrink();
 
-    // Try the static default map first; for custom rooms show a generic banner.
-    final meta =
-        _defaultMeta[_roomId] ??
-        (label: _roomId!.toUpperCase(), color: NeoColors.muted, emoji: '📍');
+    final matchedRoom = widget.rooms.where((r) => r.id == _roomId).firstOrNull;
+    final defaultMeta = _defaultMeta[_roomId];
+    final meta = (
+      label: matchedRoom != null
+          ? matchedRoom.name.toUpperCase()
+          : (defaultMeta?.label ?? _roomId!.toUpperCase()),
+      color: defaultMeta?.color ??
+          (matchedRoom != null ? Color(matchedRoom.colorHex) : NeoColors.muted),
+      emoji: defaultMeta?.emoji ?? '📍',
+    );
 
     final topPad = MediaQuery.of(context).padding.top + 52 + 12;
 

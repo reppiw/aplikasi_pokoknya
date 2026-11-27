@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../models/group.dart';
 import '../../models/user.dart';
 import '../../providers/user_profile_provider.dart';
 import '../../services/auth_service.dart';
+import '../../services/database_service.dart';
 import 'edit_profile_screen.dart';
 import '../../widgets/grid_background.dart';
 import '../../widgets/neo_pressable.dart';
@@ -15,11 +17,13 @@ class _ProfileStat {
   final Color accentColor;
 }
 
-// Stats are still placeholders — will be replaced when groups/friends are wired.
-List<_ProfileStat> _buildStats() => const [
-  _ProfileStat('GROUPS', '-', NeoColors.accent),
-  _ProfileStat('FRIENDS', '-', NeoColors.secondary),
-  _ProfileStat('STATUS', 'ON', NeoColors.muted),
+List<_ProfileStat> _buildStats({
+  required int groupCount,
+  required int friendCount,
+}) => [
+  _ProfileStat('GROUPS', '$groupCount', NeoColors.accent),
+  _ProfileStat('FRIENDS', '$friendCount', NeoColors.secondary),
+  const _ProfileStat('STATUS', 'ON', NeoColors.muted),
 ];
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -254,9 +258,29 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ),
       data: (user) {
         if (user == null) {
-          return const Scaffold(
+          return Scaffold(
             backgroundColor: NeoColors.cream,
-            body: Center(child: CircularProgressIndicator()),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('PROFILE NOT FOUND', style: NeoTextStyles.h3),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: NeoColors.accent,
+                        foregroundColor: NeoColors.white,
+                        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                      ),
+                      onPressed: () => AuthService.instance.signOut(),
+                      child: Text('SIGN OUT', style: NeoTextStyles.label.copyWith(color: NeoColors.white)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           );
         }
         return _buildContent(user);
@@ -265,7 +289,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _buildContent(AppUser user) {
-    final stats = _buildStats();
+    return StreamBuilder<List<Group>>(
+      stream: DatabaseService().watchUserGroups(user.id),
+      builder: (context, groupSnap) {
+        final stats = _buildStats(
+          groupCount: groupSnap.data?.length ?? 0,
+          friendCount: user.friendIds.length,
+        );
+        return _buildContentWithStats(user, stats);
+      },
+    );
+  }
+
+  Widget _buildContentWithStats(AppUser user, List<_ProfileStat> stats) {
     return Stack(
       children: [
         Positioned.fill(
@@ -443,6 +479,13 @@ class _ProfileCard extends StatelessWidget {
                           fit: BoxFit.cover,
                           width: avatarSize,
                           height: avatarSize,
+                          errorBuilder: (_, _, _) => Text(
+                            initials,
+                            style: NeoTextStyles.h2.copyWith(
+                              fontSize: 32,
+                              color: NeoColors.white,
+                            ),
+                          ),
                         ),
                       )
                           : Text(

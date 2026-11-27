@@ -26,12 +26,19 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  void _handleSend() {
+  Future<void> _handleSend() async {
     final text = _messageController.text;
     if (text.trim().isEmpty) return;
 
     _messageController.clear();
-    _chatService.sendMessage(widget.friend.id, text);
+    try {
+      await _chatService.sendMessage(widget.friend.id, text);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal mengirim pesan: $e')),
+      );
+    }
   }
 
   @override
@@ -76,7 +83,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    'ONLINE',
+                    widget.friend.username.isNotEmpty
+                        ? '@${widget.friend.username}'
+                        : 'DIRECT MESSAGE',
                     style: NeoTextStyles.label.copyWith(
                       fontSize: 9,
                       color: NeoColors.ink,
