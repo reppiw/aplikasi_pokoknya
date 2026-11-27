@@ -176,6 +176,21 @@ class DatabaseService {
     }
   }
 
+  /// Join a public group directly by [groupId].
+  Future<void> joinPublicGroup({
+    required String groupId,
+    required String userId,
+  }) async {
+    await _groupsCollection().doc(groupId).update({
+      'memberIds': FieldValue.arrayUnion([userId]),
+    });
+  }
+
+  /// Delete a group document by [groupId].
+  Future<void> deleteGroup(String groupId) async {
+    await _groupsCollection().doc(groupId).delete();
+  }
+
   /// Accept a pending user's join request.
   Future<void> acceptMemberRequest({
     required String groupId,

@@ -29,25 +29,35 @@ class _GroupMenuScreenState extends State<GroupMenuScreen> {
   final String _currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
 
   final Map<String, AppUser> _userProfiles = {};
+  final Set<String> _loadingProfileIds = {};
 
-  void _loadUserProfiles(List<String> userIds) async {
-    final missingIds = userIds.where((id) => !_userProfiles.containsKey(id)).toList();
+  void _scheduleLoadUserProfiles(List<String> userIds) {
+    final missingIds = userIds
+        .where((id) => !_userProfiles.containsKey(id) && !_loadingProfileIds.contains(id))
+        .toList();
     if (missingIds.isEmpty) return;
+    _loadingProfileIds.addAll(missingIds);
 
-    try {
-      final users = await _db.fetchUsers(missingIds);
-      if (mounted) {
-        setState(() {
-          for (final u in users) {
-            _userProfiles[u.id] = u;
-          }
-        });
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      try {
+        final users = await _db.fetchUsers(missingIds);
+        if (mounted) {
+          setState(() {
+            for (final u in users) {
+              _userProfiles[u.id] = u;
+            }
+          });
+        }
+      } catch (_) {
+        _loadingProfileIds.removeAll(missingIds);
       }
-    } catch (_) {}
+    });
   }
 
   void _copyJoinCode(String code) {
     Clipboard.setData(ClipboardData(text: code));
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Kode grup $code berhasil disalin!', style: NeoTextStyles.label),
@@ -58,6 +68,7 @@ class _GroupMenuScreenState extends State<GroupMenuScreen> {
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -68,6 +79,67 @@ class _GroupMenuScreenState extends State<GroupMenuScreen> {
         duration: const Duration(seconds: 2),
       ),
     );
+  }
+
+  Future<void> _handleJoinGroup(Group group) async {
+    if (_currentUserId.isEmpty) {
+      _showSnackBar('Silakan login terlebih dahulu.', isError: true);
+      return;
+    }
+    try {
+      final result = await _db.joinGroupByCode(
+        code: group.joinCode,
+        userId: _currentUserId,
+      );
+      _showSnackBar(result.message, isError: !result.success);
+    } catch (e) {
+      _showSnackBar('Gagal bergabung ke grup: $e', isError: true);
+    }
+  }
+
+  Future<void> _handleDeleteGroup(Group group) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: NeoColors.cream,
+        shape: const RoundedRectangleBorder(
+          side: BorderSide(color: NeoColors.ink, width: 4),
+        ),
+        title: Text('HAPUS GRUP?', style: NeoTextStyles.h3),
+        content: Text(
+          'Grup "${group.name}" akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.',
+          style: NeoTextStyles.body,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('BATAL', style: NeoTextStyles.label),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: NeoColors.accent,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              side: const BorderSide(color: NeoColors.ink, width: 2),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('HAPUS', style: NeoTextStyles.label.copyWith(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await _db.deleteGroup(group.id);
+        if (mounted) {
+          Navigator.pop(context);
+          _showSnackBar('Grup "${group.name}" berhasil dihapus.');
+        }
+      } catch (e) {
+        _showSnackBar('Gagal menghapus grup: $e', isError: true);
+      }
+    }
   }
 
   Future<void> _handleLeaveGroup(Group group) async {
@@ -165,126 +237,133 @@ class _GroupMenuScreenState extends State<GroupMenuScreen> {
     final descCtrl = TextEditingController(text: group.description);
     bool isPrivate = group.isPrivate;
 
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: NeoColors.cream,
-          shape: const RoundedRectangleBorder(
-            side: BorderSide(color: NeoColors.ink, width: 4),
-          ),
-          title: Text('EDIT GROUP INFO', style: NeoTextStyles.h3),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('GROUP NAME', style: NeoTextStyles.label.copyWith(fontSize: 11)),
-                const SizedBox(height: 6),
-                Container(
-                  decoration: const BoxDecoration(
-                    color: NeoColors.white,
-                    border: NeoBorder.thin,
-                  ),
-                  child: TextField(
-                    controller: nameCtrl,
-                    style: NeoTextStyles.body,
-                    decoration: const InputDecoration(
-                      contentPadding: EdgeInsets.all(12),
-                      border: InputBorder.none,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text('DESCRIPTION', style: NeoTextStyles.label.copyWith(fontSize: 11)),
-                const SizedBox(height: 6),
-                Container(
-                  decoration: const BoxDecoration(
-                    color: NeoColors.white,
-                    border: NeoBorder.thin,
-                  ),
-                  child: TextField(
-                    controller: descCtrl,
-                    style: NeoTextStyles.body,
-                    maxLines: 2,
-                    decoration: const InputDecoration(
-                      contentPadding: EdgeInsets.all(12),
-                      border: InputBorder.none,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                InkWell(
-                  onTap: () => setDialogState(() => isPrivate = !isPrivate),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isPrivate ? NeoColors.accent.withValues(alpha: 0.25) : NeoColors.white,
+    try {
+      await showDialog(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            backgroundColor: NeoColors.cream,
+            shape: const RoundedRectangleBorder(
+              side: BorderSide(color: NeoColors.ink, width: 4),
+            ),
+            title: Text('EDIT GROUP INFO', style: NeoTextStyles.h3),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('GROUP NAME', style: NeoTextStyles.label.copyWith(fontSize: 11)),
+                  const SizedBox(height: 6),
+                  Container(
+                    decoration: const BoxDecoration(
+                      color: NeoColors.white,
                       border: NeoBorder.thin,
                     ),
-                    child: Row(
-                      children: [
-                        Icon(isPrivate ? Icons.lock : Icons.public, color: NeoColors.ink),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(isPrivate ? 'PRIVATE GROUP' : 'PUBLIC GROUP', style: NeoTextStyles.label),
-                              Text(
-                                isPrivate ? 'Hanya bisa join via kode' : 'Bisa dilihat di tab Discover',
-                                style: NeoTextStyles.body.copyWith(fontSize: 11),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Switch(
-                          value: isPrivate,
-                          activeThumbColor: NeoColors.accent,
-                          onChanged: (val) => setDialogState(() => isPrivate = val),
-                        ),
-                      ],
+                    child: TextField(
+                      controller: nameCtrl,
+                      style: NeoTextStyles.body,
+                      decoration: const InputDecoration(
+                        contentPadding: EdgeInsets.all(12),
+                        border: InputBorder.none,
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text('BATAL', style: NeoTextStyles.label),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: NeoColors.accent,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                side: const BorderSide(color: NeoColors.ink, width: 2),
+                  const SizedBox(height: 14),
+                  Text('DESCRIPTION', style: NeoTextStyles.label.copyWith(fontSize: 11)),
+                  const SizedBox(height: 6),
+                  Container(
+                    decoration: const BoxDecoration(
+                      color: NeoColors.white,
+                      border: NeoBorder.thin,
+                    ),
+                    child: TextField(
+                      controller: descCtrl,
+                      style: NeoTextStyles.body,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        contentPadding: EdgeInsets.all(12),
+                        border: InputBorder.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  InkWell(
+                    onTap: () => setDialogState(() => isPrivate = !isPrivate),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isPrivate ? NeoColors.accent.withValues(alpha: 0.25) : NeoColors.white,
+                        border: NeoBorder.thin,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(isPrivate ? Icons.lock : Icons.public, color: NeoColors.ink),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(isPrivate ? 'PRIVATE GROUP' : 'PUBLIC GROUP', style: NeoTextStyles.label),
+                                Text(
+                                  isPrivate ? 'Hanya bisa join via kode' : 'Bisa dilihat di tab Discover',
+                                  style: NeoTextStyles.body.copyWith(fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Switch(
+                            value: isPrivate,
+                            activeThumbColor: NeoColors.accent,
+                            onChanged: (val) => setDialogState(() => isPrivate = val),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              onPressed: () async {
-                final newName = nameCtrl.text.trim();
-                if (newName.isNotEmpty) {
-                  await _db.updateGroupSettings(
-                    groupId: group.id,
-                    name: newName,
-                    description: descCtrl.text.trim(),
-                    isPrivate: isPrivate,
-                  );
-                  if (ctx.mounted) {
-                    Navigator.pop(ctx);
-                  }
-                  if (mounted) {
-                    _showSnackBar('Informasi grup berhasil diperbarui.');
-                  }
-                }
-              },
-              child: Text('SIMPAN', style: NeoTextStyles.label.copyWith(color: Colors.white)),
             ),
-          ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('BATAL', style: NeoTextStyles.label),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: NeoColors.accent,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  side: const BorderSide(color: NeoColors.ink, width: 2),
+                ),
+                onPressed: () async {
+                  final newName = nameCtrl.text.trim();
+                  if (newName.isNotEmpty) {
+                    try {
+                      await _db.updateGroupSettings(
+                        groupId: group.id,
+                        name: newName,
+                        description: descCtrl.text.trim(),
+                        isPrivate: isPrivate,
+                      );
+                      if (ctx.mounted) {
+                        Navigator.pop(ctx);
+                      }
+                      _showSnackBar('Informasi grup berhasil diperbarui.');
+                    } catch (e) {
+                      _showSnackBar('Gagal memperbarui grup: $e', isError: true);
+                    }
+                  }
+                },
+                child: Text('SIMPAN', style: NeoTextStyles.label.copyWith(color: Colors.white)),
+              ),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    } finally {
+      nameCtrl.dispose();
+      descCtrl.dispose();
+    }
   }
 
   @override
@@ -316,8 +395,10 @@ class _GroupMenuScreenState extends State<GroupMenuScreen> {
           ...group.memberIds,
           ...group.pendingMemberIds,
         ];
-        _loadUserProfiles(allRelevantUserIds);
+        _scheduleLoadUserProfiles(allRelevantUserIds);
 
+        final isUserMember = group.isMember(_currentUserId);
+        final isUserPending = group.isPending(_currentUserId);
         final isUserOwner = group.isOwner(_currentUserId);
         final isUserAdmin = group.isAdmin(_currentUserId);
         final userRole = group.roleOf(_currentUserId);
@@ -482,43 +563,77 @@ class _GroupMenuScreenState extends State<GroupMenuScreen> {
               const SizedBox(height: 20),
 
               // ── Action Buttons ────────────────────────────────────────────────
-              NeoPressable(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => OfficeScreen(
-                        groupId: group.id,
-                        groupName: group.name,
-                      ),
+              if (!isUserMember) ...[
+                NeoPressable(
+                  onTap: isUserPending ? null : () => _handleJoinGroup(group),
+                  child: (pressed) => AnimatedContainer(
+                    duration: const Duration(milliseconds: 100),
+                    transform: pressed && !isUserPending
+                        ? Matrix4.translationValues(4.0, 4.0, 0)
+                        : Matrix4.identity(),
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      color: isUserPending ? NeoColors.muted : NeoColors.secondary,
+                      border: NeoBorder.thick,
+                      boxShadow: pressed || isUserPending ? [] : NeoShadows.m,
                     ),
-                  );
-                },
-                child: (pressed) => AnimatedContainer(
-                  duration: const Duration(milliseconds: 100),
-                  transform: pressed
-                      ? Matrix4.translationValues(4.0, 4.0, 0)
-                      : Matrix4.identity(),
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  decoration: BoxDecoration(
-                    color: NeoColors.accent,
-                    border: NeoBorder.thick,
-                    boxShadow: pressed ? [] : NeoShadows.m,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.door_sliding_outlined, color: Colors.white, size: 26),
-                      const SizedBox(width: 10),
-                      Text(
-                        'ENTER VIRTUAL OFFICE',
-                        style: NeoTextStyles.h3.copyWith(color: Colors.white, fontSize: 18),
-                      ),
-                    ],
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          isUserPending ? Icons.hourglass_top_rounded : Icons.group_add_rounded,
+                          color: NeoColors.ink,
+                          size: 26,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          isUserPending ? 'PENDING APPROVAL' : 'JOIN GROUP',
+                          style: NeoTextStyles.h3.copyWith(color: NeoColors.ink, fontSize: 18),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              ] else ...[
+                NeoPressable(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => OfficeScreen(
+                          groupId: group.id,
+                          groupName: group.name,
+                        ),
+                      ),
+                    );
+                  },
+                  child: (pressed) => AnimatedContainer(
+                    duration: const Duration(milliseconds: 100),
+                    transform: pressed
+                        ? Matrix4.translationValues(4.0, 4.0, 0)
+                        : Matrix4.identity(),
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      color: NeoColors.accent,
+                      border: NeoBorder.thick,
+                      boxShadow: pressed ? [] : NeoShadows.m,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.door_sliding_outlined, color: Colors.white, size: 26),
+                        const SizedBox(width: 10),
+                        Text(
+                          'ENTER VIRTUAL OFFICE',
+                          style: NeoTextStyles.h3.copyWith(color: Colors.white, fontSize: 18),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
 
               if (isUserAdmin) ...[
                 const SizedBox(height: 12),
@@ -613,15 +728,23 @@ class _GroupMenuScreenState extends State<GroupMenuScreen> {
                               IconButton(
                                 icon: const Icon(Icons.check_circle, color: Colors.green, size: 28),
                                 onPressed: () async {
-                                  await _db.acceptMemberRequest(groupId: group.id, userId: userId);
-                                  _showSnackBar('Permintaan $name diterima.');
+                                  try {
+                                    await _db.acceptMemberRequest(groupId: group.id, userId: userId);
+                                    _showSnackBar('Permintaan $name diterima.');
+                                  } catch (e) {
+                                    _showSnackBar('Gagal menerima permintaan: $e', isError: true);
+                                  }
                                 },
                               ),
                               IconButton(
                                 icon: const Icon(Icons.cancel, color: NeoColors.accent, size: 28),
                                 onPressed: () async {
-                                  await _db.rejectMemberRequest(groupId: group.id, userId: userId);
-                                  _showSnackBar('Permintaan ditolak.');
+                                  try {
+                                    await _db.rejectMemberRequest(groupId: group.id, userId: userId);
+                                    _showSnackBar('Permintaan ditolak.');
+                                  } catch (e) {
+                                    _showSnackBar('Gagal menolak permintaan: $e', isError: true);
+                                  }
                                 },
                               ),
                             ],
@@ -737,15 +860,19 @@ class _GroupMenuScreenState extends State<GroupMenuScreen> {
                               side: BorderSide(color: NeoColors.ink, width: 2),
                             ),
                             onSelected: (action) async {
-                              if (action == 'promote') {
-                                await _db.promoteToAdmin(groupId: group.id, userId: memberId);
-                                _showSnackBar('$name sekarang menjadi Admin.');
-                              } else if (action == 'demote') {
-                                await _db.demoteAdmin(groupId: group.id, userId: memberId);
-                                _showSnackBar('$name diturunkan menjadi Member.');
-                              } else if (action == 'kick') {
-                                await _db.removeMember(groupId: group.id, userId: memberId);
-                                _showSnackBar('$name dikeluarkan dari grup.');
+                              try {
+                                if (action == 'promote') {
+                                  await _db.promoteToAdmin(groupId: group.id, userId: memberId);
+                                  _showSnackBar('$name sekarang menjadi Admin.');
+                                } else if (action == 'demote') {
+                                  await _db.demoteAdmin(groupId: group.id, userId: memberId);
+                                  _showSnackBar('$name diturunkan menjadi Member.');
+                                } else if (action == 'kick') {
+                                  await _db.removeMember(groupId: group.id, userId: memberId);
+                                  _showSnackBar('$name dikeluarkan dari grup.');
+                                }
+                              } catch (e) {
+                                _showSnackBar('Gagal memproses aksi: $e', isError: true);
                               }
                             },
                             itemBuilder: (ctx) => [
@@ -774,8 +901,22 @@ class _GroupMenuScreenState extends State<GroupMenuScreen> {
 
               const SizedBox(height: 32),
 
-              // ── Leave Group Button ───────────────────────────────────────────
-              if (!isUserOwner) ...[
+              // ── Leave or Delete Group Button ─────────────────────────────────
+              if (isUserOwner) ...[
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: NeoColors.accent, width: 3),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                  ),
+                  icon: const Icon(Icons.delete_forever_outlined, color: NeoColors.accent),
+                  label: Text(
+                    'DELETE GROUP',
+                    style: NeoTextStyles.label.copyWith(color: NeoColors.accent),
+                  ),
+                  onPressed: () => _handleDeleteGroup(group),
+                ),
+              ] else if (isUserMember) ...[
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: NeoColors.accent, width: 3),
