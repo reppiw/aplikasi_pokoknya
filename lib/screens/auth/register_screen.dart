@@ -59,8 +59,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       // Auth state updates automatically via authProvider — no callback needed.
       if (mounted) Navigator.of(context).pop();
     } on AuthException catch (error) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(error.message)));
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.message)));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

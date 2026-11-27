@@ -34,6 +34,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
   int _selectedTabIndex = 0;
 
   void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -51,83 +52,88 @@ class _FriendsScreenState extends State<FriendsScreen> {
 
   Future<void> _openAddFriendDialog() async {
     final controller = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => Dialog(
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: NeoColors.cream,
-            border: NeoBorder.thick,
-            boxShadow: NeoShadows.l,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('ADD FRIEND', style: NeoTextStyles.h3),
-              const SizedBox(height: 6),
-              Text(
-                'Masukkan username teman yang ingin kamu tambahkan:',
-                style: NeoTextStyles.body.copyWith(fontSize: 13),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                decoration: const BoxDecoration(
-                  color: NeoColors.white,
-                  border: NeoBorder.thick,
+    String? result;
+    try {
+      result = await showDialog<String>(
+        context: context,
+        builder: (ctx) => Dialog(
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: NeoColors.cream,
+              border: NeoBorder.thick,
+              boxShadow: NeoShadows.l,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('ADD FRIEND', style: NeoTextStyles.h3),
+                const SizedBox(height: 6),
+                Text(
+                  'Masukkan username teman yang ingin kamu tambahkan:',
+                  style: NeoTextStyles.body.copyWith(fontSize: 13),
                 ),
-                child: TextField(
-                  controller: controller,
-                  style: NeoTextStyles.body,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    hintText: 'e.g. alex_rv',
-                    prefixText: '@',
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                const SizedBox(height: 16),
+                Container(
+                  decoration: const BoxDecoration(
+                    color: NeoColors.white,
+                    border: NeoBorder.thick,
                   ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: NeoColors.ink, width: 2),
-                        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      onPressed: () => Navigator.pop(ctx),
-                      child: Text('BATAL', style: NeoTextStyles.label),
+                  child: TextField(
+                    controller: controller,
+                    style: NeoTextStyles.body,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      hintText: 'e.g. alex_rv',
+                      prefixText: '@',
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: NeoColors.accent,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        side: const BorderSide(color: NeoColors.ink, width: 2),
-                        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: NeoColors.ink, width: 2),
+                          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: () => Navigator.pop(ctx),
+                        child: Text('BATAL', style: NeoTextStyles.label),
                       ),
-                      onPressed: () {
-                        final val = controller.text.trim();
-                        if (val.isNotEmpty) Navigator.pop(ctx, val);
-                      },
-                      child: Text('TAMBAH', style: NeoTextStyles.label.copyWith(color: Colors.white)),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: NeoColors.accent,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          side: const BorderSide(color: NeoColors.ink, width: 2),
+                          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: () {
+                          final val = controller.text.trim();
+                          if (val.isNotEmpty) Navigator.pop(ctx, val);
+                        },
+                        child: Text('TAMBAH', style: NeoTextStyles.label.copyWith(color: Colors.white)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
-      ),
-    );
+      );
+    } finally {
+      controller.dispose();
+    }
 
     if (result != null && result.isNotEmpty && mounted) {
       final res = await _db.addFriendByUsername(
@@ -211,6 +217,19 @@ class _FriendsScreenState extends State<FriendsScreen> {
                   ? _db.watchFriends(_currentUserId)
                   : _db.watchAllUsers(excludeUserId: _currentUserId),
               builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        'Gagal memuat daftar: ${snapshot.error}',
+                        style: NeoTextStyles.body,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
+                }
+
                 if (snapshot.connectionState == ConnectionState.waiting &&
                     !snapshot.hasData) {
                   return const Center(

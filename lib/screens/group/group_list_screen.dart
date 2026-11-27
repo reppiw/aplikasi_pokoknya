@@ -55,6 +55,7 @@ class _GroupListScreenState extends State<GroupListScreen> {
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -72,13 +73,18 @@ class _GroupListScreenState extends State<GroupListScreen> {
 
   Future<void> _createGroup() async {
     final controller = TextEditingController();
-    final result = await _showNeoDialog(
-      context: context,
-      title: 'CREATE GROUP',
-      hint: 'Group name…',
-      action: 'CREATE',
-      controller: controller,
-    );
+    String? result;
+    try {
+      result = await _showNeoDialog(
+        context: context,
+        title: 'CREATE GROUP',
+        hint: 'Group name…',
+        action: 'CREATE',
+        controller: controller,
+      );
+    } finally {
+      controller.dispose();
+    }
 
     if (result != null && result.isNotEmpty && mounted) {
       try {
@@ -106,13 +112,18 @@ class _GroupListScreenState extends State<GroupListScreen> {
 
   Future<void> _joinGroup() async {
     final controller = TextEditingController();
-    final result = await _showNeoDialog(
-      context: context,
-      title: 'JOIN GROUP',
-      hint: 'Enter 6-char group code…',
-      action: 'JOIN',
-      controller: controller,
-    );
+    String? result;
+    try {
+      result = await _showNeoDialog(
+        context: context,
+        title: 'JOIN GROUP',
+        hint: 'Enter 6-char group code…',
+        action: 'JOIN',
+        controller: controller,
+      );
+    } finally {
+      controller.dispose();
+    }
 
     if (result != null && result.isNotEmpty && mounted) {
       try {

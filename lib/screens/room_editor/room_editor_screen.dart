@@ -75,6 +75,7 @@ class _RoomEditorScreenState extends State<RoomEditorScreen> {
   Future<void> _loadRooms() async {
     try {
       final fetched = await _db.fetchGroupRooms(widget.groupId);
+      if (!mounted) return;
       setState(() {
         _rooms = fetched.isNotEmpty ? fetched : defaultRooms();
         if (_rooms.isNotEmpty) _selectedRoomId = _rooms.first.id;
@@ -82,6 +83,7 @@ class _RoomEditorScreenState extends State<RoomEditorScreen> {
       });
       _resetCamera();
     } catch (_) {
+      if (!mounted) return;
       setState(() {
         _rooms = defaultRooms();
         if (_rooms.isNotEmpty) _selectedRoomId = _rooms.first.id;
@@ -205,46 +207,50 @@ class _RoomEditorScreenState extends State<RoomEditorScreen> {
     });
   }
 
-  void _renameRoom(Room room) {
+  Future<void> _renameRoom(Room room) async {
     final ctrl = TextEditingController(text: room.name);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: NeoColors.cream,
-        shape: const RoundedRectangleBorder(
-          side: BorderSide(color: NeoColors.ink, width: 4),
-        ),
-        title: Text('RENAME ROOM', style: NeoTextStyles.h3),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          style: NeoTextStyles.body,
-          decoration: const InputDecoration(
-            labelText: 'NAMA RUANGAN',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.zero,
-              borderSide: BorderSide(color: NeoColors.ink, width: 2),
+    try {
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: NeoColors.cream,
+          shape: const RoundedRectangleBorder(
+            side: BorderSide(color: NeoColors.ink, width: 4),
+          ),
+          title: Text('RENAME ROOM', style: NeoTextStyles.h3),
+          content: TextField(
+            controller: ctrl,
+            autofocus: true,
+            style: NeoTextStyles.body,
+            decoration: const InputDecoration(
+              labelText: 'NAMA RUANGAN',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.zero,
+                borderSide: BorderSide(color: NeoColors.ink, width: 2),
+              ),
             ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('BATAL', style: NeoTextStyles.label),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final newName = ctrl.text.trim();
+                if (newName.isNotEmpty) {
+                  _updateRoom(room.copyWith(name: newName));
+                }
+                Navigator.pop(ctx);
+              },
+              child: Text('SIMPAN', style: NeoTextStyles.label.copyWith(color: Colors.white)),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('BATAL', style: NeoTextStyles.label),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final newName = ctrl.text.trim();
-              if (newName.isNotEmpty) {
-                _updateRoom(room.copyWith(name: newName));
-              }
-              Navigator.pop(ctx);
-            },
-            child: Text('SIMPAN', style: NeoTextStyles.label.copyWith(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
+      );
+    } finally {
+      ctrl.dispose();
+    }
   }
 
   void _changeRoomColor(Room room) {

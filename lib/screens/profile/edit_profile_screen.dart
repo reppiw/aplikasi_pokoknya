@@ -38,7 +38,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final uid = AuthService.instance.currentUser?.uid;
-    if (uid == null) return;
+    if (uid == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sesi login tidak ditemukan.')),
+        );
+      }
+      return;
+    }
 
     setState(() => _isLoading = true);
     try {
