@@ -8,6 +8,7 @@ import '../../game/components/office_map.dart' show kMapCols, kMapRows, kTileSiz
 import '../../models/furniture.dart';
 import '../../models/room.dart';
 import '../../services/database_service.dart';
+import '../../services/groq_service.dart';
 import '../../widgets/neo_pressable.dart';
 
 /// Interaction mode for the free camera visual room editor.
@@ -26,6 +27,148 @@ class RoomEditorScreen extends StatefulWidget {
 }
 
 class _RoomEditorScreenState extends State<RoomEditorScreen> {
+  final GroqService _groqService = GroqService();
+  bool _generating = false;
+
+  // Show AI prompt dialog, then call Groq and update the layout.
+  void _showAIPromptDialog() async {
+    final promptCtrl = TextEditingController();
+    final roomCountCtrl = TextEditingController();
+
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: NeoColors.cream,
+        shape: const RoundedRectangleBorder(
+          side: BorderSide(color: NeoColors.ink, width: 4),
+        ),
+        title: Text('AI GENERATE OFFICE', style: NeoTextStyles.h3),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Describe the office you want (Indonesian or English).',
+                style: NeoTextStyles.body.copyWith(fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: promptCtrl,
+                maxLines: 4,
+                style: NeoTextStyles.body,
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(
+                    borderRadius: BorderRadius.zero,
+                    borderSide: BorderSide(color: NeoColors.ink, width: 2),
+                  ),
+                  labelText: 'PROMPT',
+                  labelStyle: NeoTextStyles.label,
+                  hintText: 'e.g. A startup office with a lounge, meeting room, and deep work zone',
+                  hintStyle: NeoTextStyles.body.copyWith(fontSize: 11, color: Colors.grey),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Number of rooms (optional, leave empty = auto)',
+                style: NeoTextStyles.body.copyWith(fontSize: 12),
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                width: 80,
+                child: TextField(
+                  controller: roomCountCtrl,
+                  keyboardType: TextInputType.number,
+                  style: NeoTextStyles.body,
+                  decoration: InputDecoration(
+                    border: const OutlineInputBorder(
+                      borderRadius: BorderRadius.zero,
+                      borderSide: BorderSide(color: NeoColors.ink, width: 2),
+                    ),
+                    hintText: '3',
+                    hintStyle: NeoTextStyles.body.copyWith(fontSize: 11, color: Colors.grey),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('BATAL', style: NeoTextStyles.label),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: NeoColors.ink,
+              shape: const RoundedRectangleBorder(),
+            ),
+            onPressed: () {
+              final prompt = promptCtrl.text.trim();
+              final countText = roomCountCtrl.text.trim();
+              int? count;
+              if (countText.isNotEmpty) count = int.tryParse(countText);
+              Navigator.pop(ctx, {'prompt': prompt, 'count': count});
+            },
+            child: Text('GENERATE', style: NeoTextStyles.label.copyWith(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    promptCtrl.dispose();
+    roomCountCtrl.dispose();
+
+    // User cancelled the dialog.
+    if (result == null || !mounted) return;
+
+    final prompt = result['prompt'] as String? ?? '';
+    final count = result['count'] as int?;
+
+    if (prompt.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Prompt cannot be empty.', style: NeoTextStyles.label),
+          backgroundColor: NeoColors.accent,
+        ),
+      );
+      return;
+    }
+
+    // Show loading state.
+    setState(() => _generating = true);
+
+    try {
+      final generated = await _groqService.generateRooms(prompt, roomCount: count);
+      if (!mounted) return;
+      setState(() {
+        _rooms = generated;
+        _selectedRoomId = _rooms.isNotEmpty ? _rooms.first.id : null;
+        _selectedFurnitureId = null;
+        _generating = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'AI generated ${generated.length} room(s).',
+            style: NeoTextStyles.label,
+          ),
+          backgroundColor: NeoColors.ink,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _generating = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('AI generation failed: $e', style: NeoTextStyles.label.copyWith(color: Colors.white)),
+          backgroundColor: NeoColors.accent,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
+  }
+
   final DatabaseService _db = DatabaseService();
   final _uuid = const Uuid();
   final TransformationController _transformCtrl = TransformationController();
@@ -674,6 +817,34 @@ class _RoomEditorScreenState extends State<RoomEditorScreen> {
                   bottom: 0,
                   child: _buildBottomBar(),
                 ),
+
+                // ── 5. AI Generating Overlay ──────────────────────────────────
+                if (_generating)
+                  Positioned.fill(
+                    child: Container(
+                      color: Colors.black54,
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(28),
+                          decoration: BoxDecoration(
+                            color: NeoColors.cream,
+                            border: NeoBorder.thick,
+                            boxShadow: NeoShadows.s,
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const CircularProgressIndicator(color: NeoColors.ink),
+                              const SizedBox(height: 16),
+                              Text('AI is generating your office...', style: NeoTextStyles.h3.copyWith(fontSize: 14)),
+                              const SizedBox(height: 6),
+                              Text('This may take a few seconds.', style: NeoTextStyles.body.copyWith(fontSize: 11)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
     );
@@ -995,9 +1166,38 @@ class _RoomEditorScreenState extends State<RoomEditorScreen> {
               children: [
                 Expanded(
                   child: NeoPressable(
+                    onTap: _showAIPromptDialog,
+                    child: (pressed) => Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+                      decoration: BoxDecoration(
+                        color: NeoColors.muted,
+                        border: NeoBorder.thin,
+                        boxShadow: pressed ? [] : NeoShadows.s,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.auto_fix_high, size: 16, color: NeoColors.ink),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              'AI BUILD',
+                              style: NeoTextStyles.label.copyWith(fontSize: 10),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: NeoPressable(
                     onTap: _addRoom,
                     child: (pressed) => Container(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
                       decoration: BoxDecoration(
                         color: NeoColors.white,
                         border: NeoBorder.thin,
@@ -1006,20 +1206,27 @@ class _RoomEditorScreenState extends State<RoomEditorScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.add_box_outlined, size: 18, color: NeoColors.ink),
-                          const SizedBox(width: 6),
-                          Text('TAMBAH ROOM', style: NeoTextStyles.label.copyWith(fontSize: 11)),
+                          const Icon(Icons.add_box_outlined, size: 16, color: NeoColors.ink),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              'TAMBAH ROOM',
+                              style: NeoTextStyles.label.copyWith(fontSize: 10),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                         ],
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(
                   child: NeoPressable(
                     onTap: _openFurnitureCatalog,
                     child: (pressed) => Container(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
                       decoration: BoxDecoration(
                         color: NeoColors.secondary,
                         border: NeoBorder.thin,
@@ -1028,9 +1235,16 @@ class _RoomEditorScreenState extends State<RoomEditorScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.weekend_outlined, size: 18, color: NeoColors.ink),
-                          const SizedBox(width: 6),
-                          Text('KATALOG FURNITURE', style: NeoTextStyles.label.copyWith(fontSize: 11)),
+                          const Icon(Icons.weekend_outlined, size: 16, color: NeoColors.ink),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              'FURNITURE',
+                              style: NeoTextStyles.label.copyWith(fontSize: 10),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                         ],
                       ),
                     ),

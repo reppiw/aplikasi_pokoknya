@@ -28,6 +28,7 @@ dependencies:
   flame: ^1.38.2
   flame_tiled: ^3.1.2
   uuid: ^4.5.1
+  http: ^1.2.0
 
   # Unity integration — add flutter_unity_widget back when the Unity project
   # is ready to embed. The 2022.x release uses jcenter() which is incompatible
