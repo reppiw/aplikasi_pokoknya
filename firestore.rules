@@ -23,6 +23,8 @@ service cloud.firestore {
     match /groups/{groupId} {
       allow read: if request.auth != null;
       allow create, update: if request.auth != null;
+      allow delete: if request.auth != null
+        && resource.data.ownerId == request.auth.uid;
 
       // Real-time avatar presence in group offices
       match /avatars/{userId} {
@@ -51,7 +53,9 @@ service cloud.firestore {
         && request.auth.uid in resource.data.participants;
 
       match /messages/{messageId} {
-        allow read: if request.auth != null;
+        allow read: if request.auth != null
+          && (!exists(/databases/$(database)/documents/chat_rooms/$(chatRoomId))
+              || request.auth.uid in get(/databases/$(database)/documents/chat_rooms/$(chatRoomId)).data.participants);
         allow create: if request.auth != null
           && request.resource.data.senderId == request.auth.uid;
       }

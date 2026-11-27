@@ -30,12 +30,143 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final _searchController = TextEditingController();
   final DatabaseService _db = DatabaseService();
+  String _searchQuery = '';
 
   String get _currentUserId =>
       AuthService.instance.currentUser?.uid ?? 'demo-user-1';
 
   @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  void _onSearchChanged() {
+    final next = _searchController.text.trim().toLowerCase();
+    if (next != _searchQuery) {
+      setState(() => _searchQuery = next);
+    }
+  }
+
+  List<Group> _filterGroups(List<Group> groups) {
+    if (_searchQuery.isEmpty) return groups;
+    return groups.where((g) {
+      return g.name.toLowerCase().contains(_searchQuery) ||
+          g.description.toLowerCase().contains(_searchQuery);
+    }).toList();
+  }
+
+  Future<void> _showNotificationsSheet() async {
+    final userGroups = await _db.watchUserGroups(_currentUserId).first;
+    if (!mounted) return;
+    final pendingGroups = userGroups
+        .where((g) => g.isAdmin(_currentUserId) && g.pendingMemberIds.isNotEmpty)
+        .toList();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: NeoColors.cream,
+      shape: const RoundedRectangleBorder(
+        side: BorderSide(color: NeoColors.ink, width: 3),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text('NOTIFICATIONS', style: NeoTextStyles.h3),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close, color: NeoColors.ink),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (pendingGroups.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: Text(
+                    'NO PENDING NOTIFICATIONS',
+                    style: NeoTextStyles.label.copyWith(color: Colors.grey[700]),
+                  ),
+                ),
+              )
+            else
+              ...pendingGroups.map(
+                (g) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => GroupMenuScreen(
+                            groupId: g.id,
+                            initialGroup: g,
+                          ),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: NeoColors.white,
+                        border: NeoBorder.thin,
+                        boxShadow: NeoShadows.s,
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: const BoxDecoration(
+                              color: NeoColors.secondary,
+                              border: NeoBorder.thin,
+                            ),
+                            child: Text(
+                              '${g.pendingMemberIds.length}',
+                              style: NeoTextStyles.label.copyWith(fontSize: 12),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  g.name.toUpperCase(),
+                                  style: NeoTextStyles.label.copyWith(fontSize: 13),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  '${g.pendingMemberIds.length} pending join request(s)',
+                                  style: NeoTextStyles.body.copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.arrow_forward_rounded, color: NeoColors.ink),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
   void dispose() {
+    _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     super.dispose();
   }
@@ -73,7 +204,10 @@ class _HomeScreenState extends State<HomeScreen> {
               slivers: [
                 // ── Hero title area ────────────────────────────────────────
                 SliverToBoxAdapter(
-                  child: _HeroHeader(searchController: _searchController),
+                  child: _HeroHeader(
+                    searchController: _searchController,
+                    onNotificationTap: _showNotificationsSheet,
+                  ),
                 ),
 
                 // ── Popular / Hot Public Groups ────────────────────────────
@@ -90,10 +224,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: StreamBuilder<List<Group>>(
                     stream: _db.watchPublicGroups(),
                     builder: (context, snapshot) {
-                      final groups = snapshot.data ?? [];
+                      final groups = _filterGroups(snapshot.data ?? []);
                       if (groups.isEmpty) {
-                        return const _EmptyGroupRow(
-                          message: 'NO PUBLIC GROUPS YET',
+                        return _EmptyGroupRow(
+                          message: _searchQuery.isNotEmpty
+                              ? 'NO PUBLIC GROUPS MATCH "$_searchQuery"'
+                              : 'NO PUBLIC GROUPS YET',
                         );
                       }
                       return _GroupRow(groups: groups);
@@ -117,10 +253,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: StreamBuilder<List<Group>>(
                     stream: _db.watchUserGroups(_currentUserId),
                     builder: (context, snapshot) {
-                      final groups = snapshot.data ?? [];
+                      final groups = _filterGroups(snapshot.data ?? []);
                       if (groups.isEmpty) {
-                        return const _EmptyGroupRow(
-                          message: 'JOIN OR CREATE A GROUP IN THE GROUPS TAB',
+                        return _EmptyGroupRow(
+                          message: _searchQuery.isNotEmpty
+                              ? 'NO GROUPS MATCH "$_searchQuery"'
+                              : 'JOIN OR CREATE A GROUP IN THE GROUPS TAB',
                         );
                       }
                       return _GroupRow(groups: groups);
@@ -144,8 +282,12 @@ class _HomeScreenState extends State<HomeScreen> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _HeroHeader extends StatelessWidget {
-  const _HeroHeader({required this.searchController});
+  const _HeroHeader({
+    required this.searchController,
+    required this.onNotificationTap,
+  });
   final TextEditingController searchController;
+  final VoidCallback onNotificationTap;
 
   @override
   Widget build(BuildContext context) {
@@ -178,7 +320,7 @@ class _HeroHeader extends StatelessWidget {
               const Spacer(),
               _NeoIconButton(
                 icon: Icons.notifications_outlined,
-                onTap: () {},
+                onTap: onNotificationTap,
               ),
             ],
           ),
